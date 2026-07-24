@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as InstantMatchRouteImport } from './routes/instant-match'
 import { Route as BookRouteImport } from './routes/book'
@@ -28,6 +29,11 @@ const WalletRoute = WalletRouteImport.update({
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/book': typeof BookRoute
   '/instant-match': typeof InstantMatchRoute
   '/messages': typeof MessagesRoute
+  '/notifications': typeof NotificationsRoute
   '/search': typeof SearchRoute
   '/wallet': typeof WalletRoute
   '/pro/adaeze': typeof ProAdaezeRoute
@@ -89,6 +96,7 @@ export interface FileRoutesByTo {
   '/book': typeof BookRoute
   '/instant-match': typeof InstantMatchRoute
   '/messages': typeof MessagesRoute
+  '/notifications': typeof NotificationsRoute
   '/search': typeof SearchRoute
   '/wallet': typeof WalletRoute
   '/pro/adaeze': typeof ProAdaezeRoute
@@ -102,6 +110,7 @@ export interface FileRoutesById {
   '/book': typeof BookRoute
   '/instant-match': typeof InstantMatchRoute
   '/messages': typeof MessagesRoute
+  '/notifications': typeof NotificationsRoute
   '/search': typeof SearchRoute
   '/wallet': typeof WalletRoute
   '/pro/adaeze': typeof ProAdaezeRoute
@@ -116,6 +125,7 @@ export interface FileRouteTypes {
     | '/book'
     | '/instant-match'
     | '/messages'
+    | '/notifications'
     | '/search'
     | '/wallet'
     | '/pro/adaeze'
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/book'
     | '/instant-match'
     | '/messages'
+    | '/notifications'
     | '/search'
     | '/wallet'
     | '/pro/adaeze'
@@ -140,6 +151,7 @@ export interface FileRouteTypes {
     | '/book'
     | '/instant-match'
     | '/messages'
+    | '/notifications'
     | '/search'
     | '/wallet'
     | '/pro/adaeze'
@@ -153,6 +165,7 @@ export interface RootRouteChildren {
   BookRoute: typeof BookRoute
   InstantMatchRoute: typeof InstantMatchRoute
   MessagesRoute: typeof MessagesRoute
+  NotificationsRoute: typeof NotificationsRoute
   SearchRoute: typeof SearchRoute
   WalletRoute: typeof WalletRoute
   ProAdaezeRoute: typeof ProAdaezeRoute
@@ -174,6 +187,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -241,6 +261,7 @@ const rootRouteChildren: RootRouteChildren = {
   BookRoute: BookRoute,
   InstantMatchRoute: InstantMatchRoute,
   MessagesRoute: MessagesRoute,
+  NotificationsRoute: NotificationsRoute,
   SearchRoute: SearchRoute,
   WalletRoute: WalletRoute,
   ProAdaezeRoute: ProAdaezeRoute,
@@ -250,3 +271,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
