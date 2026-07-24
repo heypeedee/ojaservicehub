@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WalletRouteImport } from './routes/wallet'
+import { Route as SearchRouteImport } from './routes/search'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as InstantMatchRouteImport } from './routes/instant-match'
 import { Route as BookRouteImport } from './routes/book'
@@ -20,6 +21,11 @@ import { Route as ProAdaezeRouteImport } from './routes/pro.adaeze'
 const WalletRoute = WalletRouteImport.update({
   id: '/wallet',
   path: '/wallet',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/book': typeof BookRoute
   '/instant-match': typeof InstantMatchRoute
   '/messages': typeof MessagesRoute
+  '/search': typeof SearchRoute
   '/wallet': typeof WalletRoute
   '/pro/adaeze': typeof ProAdaezeRoute
   '/provider/bookings': typeof ProviderBookingsRoute
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/book': typeof BookRoute
   '/instant-match': typeof InstantMatchRoute
   '/messages': typeof MessagesRoute
+  '/search': typeof SearchRoute
   '/wallet': typeof WalletRoute
   '/pro/adaeze': typeof ProAdaezeRoute
   '/provider/bookings': typeof ProviderBookingsRoute
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/book': typeof BookRoute
   '/instant-match': typeof InstantMatchRoute
   '/messages': typeof MessagesRoute
+  '/search': typeof SearchRoute
   '/wallet': typeof WalletRoute
   '/pro/adaeze': typeof ProAdaezeRoute
   '/provider/bookings': typeof ProviderBookingsRoute
@@ -88,6 +97,7 @@ export interface FileRouteTypes {
     | '/book'
     | '/instant-match'
     | '/messages'
+    | '/search'
     | '/wallet'
     | '/pro/adaeze'
     | '/provider/bookings'
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/book'
     | '/instant-match'
     | '/messages'
+    | '/search'
     | '/wallet'
     | '/pro/adaeze'
     | '/provider/bookings'
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/book'
     | '/instant-match'
     | '/messages'
+    | '/search'
     | '/wallet'
     | '/pro/adaeze'
     | '/provider/bookings'
@@ -116,6 +128,7 @@ export interface RootRouteChildren {
   BookRoute: typeof BookRoute
   InstantMatchRoute: typeof InstantMatchRoute
   MessagesRoute: typeof MessagesRoute
+  SearchRoute: typeof SearchRoute
   WalletRoute: typeof WalletRoute
   ProAdaezeRoute: typeof ProAdaezeRoute
   ProviderBookingsRoute: typeof ProviderBookingsRoute
@@ -128,6 +141,13 @@ declare module '@tanstack/react-router' {
       path: '/wallet'
       fullPath: '/wallet'
       preLoaderRoute: typeof WalletRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -180,6 +200,7 @@ const rootRouteChildren: RootRouteChildren = {
   BookRoute: BookRoute,
   InstantMatchRoute: InstantMatchRoute,
   MessagesRoute: MessagesRoute,
+  SearchRoute: SearchRoute,
   WalletRoute: WalletRoute,
   ProAdaezeRoute: ProAdaezeRoute,
   ProviderBookingsRoute: ProviderBookingsRoute,
