@@ -14,6 +14,7 @@ import { Route as SearchRouteImport } from './routes/search'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as InstantMatchRouteImport } from './routes/instant-match'
 import { Route as BookRouteImport } from './routes/book'
+import { Route as AiStudioRouteImport } from './routes/ai-studio'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderBookingsRouteImport } from './routes/provider.bookings'
 import { Route as ProAdaezeRouteImport } from './routes/pro.adaeze'
@@ -43,6 +44,11 @@ const BookRoute = BookRouteImport.update({
   path: '/book',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AiStudioRoute = AiStudioRouteImport.update({
+  id: '/ai-studio',
+  path: '/ai-studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -61,6 +67,7 @@ const ProAdaezeRoute = ProAdaezeRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/ai-studio': typeof AiStudioRoute
   '/book': typeof BookRoute
   '/instant-match': typeof InstantMatchRoute
   '/messages': typeof MessagesRoute
@@ -71,6 +78,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ai-studio': typeof AiStudioRoute
   '/book': typeof BookRoute
   '/instant-match': typeof InstantMatchRoute
   '/messages': typeof MessagesRoute
@@ -82,6 +90,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/ai-studio': typeof AiStudioRoute
   '/book': typeof BookRoute
   '/instant-match': typeof InstantMatchRoute
   '/messages': typeof MessagesRoute
@@ -94,6 +103,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/ai-studio'
     | '/book'
     | '/instant-match'
     | '/messages'
@@ -104,6 +114,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/ai-studio'
     | '/book'
     | '/instant-match'
     | '/messages'
@@ -114,6 +125,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/ai-studio'
     | '/book'
     | '/instant-match'
     | '/messages'
@@ -125,6 +137,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AiStudioRoute: typeof AiStudioRoute
   BookRoute: typeof BookRoute
   InstantMatchRoute: typeof InstantMatchRoute
   MessagesRoute: typeof MessagesRoute
@@ -171,6 +184,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ai-studio': {
+      id: '/ai-studio'
+      path: '/ai-studio'
+      fullPath: '/ai-studio'
+      preLoaderRoute: typeof AiStudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -197,6 +217,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AiStudioRoute: AiStudioRoute,
   BookRoute: BookRoute,
   InstantMatchRoute: InstantMatchRoute,
   MessagesRoute: MessagesRoute,
