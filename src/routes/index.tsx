@@ -199,12 +199,20 @@ function Hero() {
 
           <form
             className="mx-auto mt-8 flex w-full max-w-3xl flex-col gap-2 rounded-2xl border border-border bg-card p-2 shadow-lg shadow-primary/5 sm:flex-row sm:items-center"
-            onSubmit={(e) => e.preventDefault()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              const q = String(fd.get("q") ?? "").trim();
+              const where = String(fd.get("where") ?? "").trim();
+              const full = [q, where && `near ${where}`].filter(Boolean).join(" ");
+              window.location.href = `/search?q=${encodeURIComponent(full)}`;
+            }}
           >
             <div className="flex flex-1 items-center gap-3 rounded-xl px-3 py-2">
               <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
               <input
                 type="text"
+                name="q"
                 placeholder="What service do you need?"
                 className="w-full bg-transparent text-base outline-none placeholder:text-muted-foreground"
               />
@@ -214,7 +222,8 @@ function Hero() {
               <MapPin className="h-5 w-5 shrink-0 text-muted-foreground" />
               <input
                 type="text"
-                defaultValue="Lekki, Lagos"
+                name="where"
+                defaultValue="Lekki"
                 className="w-full bg-transparent text-base outline-none placeholder:text-muted-foreground"
                 placeholder="Where?"
               />
@@ -232,16 +241,18 @@ function Hero() {
             <span className="font-medium text-foreground/70">Trending:</span>
             {["Hairdresser near Lekki", "Verified electrician", "Available today", "Chef under ₦50,000"].map(
               (t) => (
-                <a
+                <Link
                   key={t}
-                  href="#"
+                  to="/search"
+                  search={{ q: t }}
                   className="rounded-full border border-border bg-card px-3 py-1 hover:border-primary/40 hover:text-foreground"
                 >
                   {t}
-                </a>
+                </Link>
               ),
             )}
           </div>
+
 
           <dl className="mx-auto mt-12 grid max-w-2xl grid-cols-3 gap-4 text-left">
             {[
