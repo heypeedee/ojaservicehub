@@ -133,7 +133,7 @@ function SearchPage() {
       return true;
     });
     const scored = list.map((p) => {
-      const kw = words.reduce(
+      const kw = words.reduce<number>(
         (s, w) => s + (p.name.toLowerCase().includes(w) || p.category.toLowerCase().includes(w) || p.area.toLowerCase().includes(w) ? 1 : 0),
         0,
       );
