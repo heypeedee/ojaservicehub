@@ -323,9 +323,9 @@ function Featured() {
         </div>
         <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {featured.map((p) => (
-            <a
+            <Link
               key={p.name}
-              href="#"
+              to="/book"
               className="group overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
             >
               <div className={`relative h-40 bg-gradient-to-br ${p.tone}`}>
@@ -358,7 +358,7 @@ function Featured() {
                   <span className="text-xs font-medium text-primary group-hover:underline">Book now →</span>
                 </div>
               </div>
-            </a>
+            </Link>
           ))}
         </div>
       </div>
