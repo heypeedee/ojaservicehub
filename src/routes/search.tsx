@@ -120,7 +120,7 @@ function SearchPage() {
     sort !== "relevance" ? sort : nl.topRated ? "rating" : nl.nearby ? "distance" : "relevance";
 
   const results = useMemo(() => {
-    const words = q.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+    const words: string[] = String(q).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
     let list = providers.filter((p) => {
       if (effCategory && p.category !== effCategory) return false;
       if (effArea && p.area !== effArea) return false;
@@ -133,10 +133,10 @@ function SearchPage() {
       return true;
     });
     const scored = list.map((p) => {
-      const kw = words.reduce<number>(
-        (s, w) => s + (p.name.toLowerCase().includes(w) || p.category.toLowerCase().includes(w) || p.area.toLowerCase().includes(w) ? 1 : 0),
-        0,
-      );
+      let kw = 0;
+      for (const w of words) {
+        if (p.name.toLowerCase().includes(w) || p.category.toLowerCase().includes(w) || p.area.toLowerCase().includes(w)) kw += 1;
+      }
       const rel = kw * 5 + (p.rating - 4) * 3 + (p.verified ? 1 : 0) + Math.max(0, 1 - p.distanceKm / 10);
       return { p, rel };
     });
