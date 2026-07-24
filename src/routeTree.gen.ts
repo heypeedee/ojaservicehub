@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as BookRouteImport } from './routes/book'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderBookingsRouteImport } from './routes/provider.bookings'
+import { Route as ProAdaezeRouteImport } from './routes/pro.adaeze'
 
 const BookRoute = BookRouteImport.update({
   id: '/book',
@@ -28,34 +29,43 @@ const ProviderBookingsRoute = ProviderBookingsRouteImport.update({
   path: '/provider/bookings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProAdaezeRoute = ProAdaezeRouteImport.update({
+  id: '/pro/adaeze',
+  path: '/pro/adaeze',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/book': typeof BookRoute
+  '/pro/adaeze': typeof ProAdaezeRoute
   '/provider/bookings': typeof ProviderBookingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/book': typeof BookRoute
+  '/pro/adaeze': typeof ProAdaezeRoute
   '/provider/bookings': typeof ProviderBookingsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/book': typeof BookRoute
+  '/pro/adaeze': typeof ProAdaezeRoute
   '/provider/bookings': typeof ProviderBookingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/book' | '/provider/bookings'
+  fullPaths: '/' | '/book' | '/pro/adaeze' | '/provider/bookings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/book' | '/provider/bookings'
-  id: '__root__' | '/' | '/book' | '/provider/bookings'
+  to: '/' | '/book' | '/pro/adaeze' | '/provider/bookings'
+  id: '__root__' | '/' | '/book' | '/pro/adaeze' | '/provider/bookings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BookRoute: typeof BookRoute
+  ProAdaezeRoute: typeof ProAdaezeRoute
   ProviderBookingsRoute: typeof ProviderBookingsRoute
 }
 
@@ -82,12 +92,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProviderBookingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pro/adaeze': {
+      id: '/pro/adaeze'
+      path: '/pro/adaeze'
+      fullPath: '/pro/adaeze'
+      preLoaderRoute: typeof ProAdaezeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BookRoute: BookRoute,
+  ProAdaezeRoute: ProAdaezeRoute,
   ProviderBookingsRoute: ProviderBookingsRoute,
 }
 export const routeTree = rootRouteImport
