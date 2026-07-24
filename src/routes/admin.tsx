@@ -370,10 +370,10 @@ function ProvidersView() {
 
 function VerificationView() {
   const [rows, setRows] = useState([
-    { id: "v1", name: "Chidera Obi", type: "ID + Selfie", submitted: "12 hrs ago", risk: "Low", status: "Pending" as const },
-    { id: "v2", name: "Bright Osas", type: "Business permit", submitted: "1 day ago", risk: "Medium", status: "Pending" as const },
-    { id: "v3", name: "Kemi Adeoye", type: "ID + Address", submitted: "2 days ago", risk: "Low", status: "Pending" as const },
-    { id: "v4", name: "Ifeanyi N.", type: "Background check", submitted: "3 days ago", risk: "High", status: "Pending" as const },
+    { id: "v1", name: "Chidera Obi", type: "ID + Selfie", submitted: "12 hrs ago", risk: "Low", status: "Pending" as "Pending" | "Approved" | "Rejected" },
+    { id: "v2", name: "Bright Osas", type: "Business permit", submitted: "1 day ago", risk: "Medium", status: "Pending" as "Pending" | "Approved" | "Rejected" },
+    { id: "v3", name: "Kemi Adeoye", type: "ID + Address", submitted: "2 days ago", risk: "Low", status: "Pending" as "Pending" | "Approved" | "Rejected" },
+    { id: "v4", name: "Ifeanyi N.", type: "Background check", submitted: "3 days ago", risk: "High", status: "Pending" as "Pending" | "Approved" | "Rejected" },
   ]);
   function decide(id: string, approved: boolean) {
     setRows((all) => all.map((r) => (r.id === id ? { ...r, status: approved ? "Approved" : "Rejected" } : r)));
@@ -493,10 +493,10 @@ function DisputesView() {
 
 function PayoutsView() {
   const [rows, setRows] = useState([
-    { id: "w1", who: "Adaeze O.", bank: "GTBank •• 4421", amount: 180000, status: "Pending" as const },
-    { id: "w2", who: "Chef Bola", bank: "Access •• 9012", amount: 240000, status: "Pending" as const },
-    { id: "w3", who: "James E.", bank: "Zenith •• 3388", amount: 95000, status: "Pending" as const },
-    { id: "w4", who: "Zainab A.", bank: "UBA •• 7712", amount: 60000, status: "Pending" as const },
+    { id: "w1", who: "Adaeze O.", bank: "GTBank •• 4421", amount: 180000, status: "Pending" as "Pending" | "Approved" | "Rejected" },
+    { id: "w2", who: "Chef Bola", bank: "Access •• 9012", amount: 240000, status: "Pending" as "Pending" | "Approved" | "Rejected" },
+    { id: "w3", who: "James E.", bank: "Zenith •• 3388", amount: 95000, status: "Pending" as "Pending" | "Approved" | "Rejected" },
+    { id: "w4", who: "Zainab A.", bank: "UBA •• 7712", amount: 60000, status: "Pending" as "Pending" | "Approved" | "Rejected" },
   ]);
   function decide(id: string, approve: boolean) {
     setRows((all) => all.map((r) => (r.id === id ? { ...r, status: approve ? "Approved" : "Rejected" } : r)));
