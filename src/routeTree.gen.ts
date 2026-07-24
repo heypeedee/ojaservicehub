@@ -9,11 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as BookRouteImport } from './routes/book'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderBookingsRouteImport } from './routes/provider.bookings'
 import { Route as ProAdaezeRouteImport } from './routes/pro.adaeze'
 
+const WalletRoute = WalletRouteImport.update({
+  id: '/wallet',
+  path: '/wallet',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BookRoute = BookRouteImport.update({
   id: '/book',
   path: '/book',
@@ -38,12 +44,14 @@ const ProAdaezeRoute = ProAdaezeRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/book': typeof BookRoute
+  '/wallet': typeof WalletRoute
   '/pro/adaeze': typeof ProAdaezeRoute
   '/provider/bookings': typeof ProviderBookingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/book': typeof BookRoute
+  '/wallet': typeof WalletRoute
   '/pro/adaeze': typeof ProAdaezeRoute
   '/provider/bookings': typeof ProviderBookingsRoute
 }
@@ -51,26 +59,41 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/book': typeof BookRoute
+  '/wallet': typeof WalletRoute
   '/pro/adaeze': typeof ProAdaezeRoute
   '/provider/bookings': typeof ProviderBookingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/book' | '/pro/adaeze' | '/provider/bookings'
+  fullPaths: '/' | '/book' | '/wallet' | '/pro/adaeze' | '/provider/bookings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/book' | '/pro/adaeze' | '/provider/bookings'
-  id: '__root__' | '/' | '/book' | '/pro/adaeze' | '/provider/bookings'
+  to: '/' | '/book' | '/wallet' | '/pro/adaeze' | '/provider/bookings'
+  id:
+    | '__root__'
+    | '/'
+    | '/book'
+    | '/wallet'
+    | '/pro/adaeze'
+    | '/provider/bookings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BookRoute: typeof BookRoute
+  WalletRoute: typeof WalletRoute
   ProAdaezeRoute: typeof ProAdaezeRoute
   ProviderBookingsRoute: typeof ProviderBookingsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/wallet': {
+      id: '/wallet'
+      path: '/wallet'
+      fullPath: '/wallet'
+      preLoaderRoute: typeof WalletRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/book': {
       id: '/book'
       path: '/book'
@@ -105,6 +128,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BookRoute: BookRoute,
+  WalletRoute: WalletRoute,
   ProAdaezeRoute: ProAdaezeRoute,
   ProviderBookingsRoute: ProviderBookingsRoute,
 }
