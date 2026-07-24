@@ -358,7 +358,7 @@ function Featured() {
                   <span className="text-xs font-medium text-primary group-hover:underline">Book now →</span>
                 </div>
               </div>
-            </a>
+            </Link>
           ))}
         </div>
       </div>
