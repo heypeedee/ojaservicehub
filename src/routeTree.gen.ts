@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as PlansRouteImport } from './routes/plans'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as InstantMatchRouteImport } from './routes/instant-match'
@@ -30,6 +31,11 @@ const WalletRoute = WalletRouteImport.update({
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlansRoute = PlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -91,6 +97,7 @@ export interface FileRoutesByFullPath {
   '/instant-match': typeof InstantMatchRoute
   '/messages': typeof MessagesRoute
   '/notifications': typeof NotificationsRoute
+  '/plans': typeof PlansRoute
   '/search': typeof SearchRoute
   '/wallet': typeof WalletRoute
   '/pro/adaeze': typeof ProAdaezeRoute
@@ -105,6 +112,7 @@ export interface FileRoutesByTo {
   '/instant-match': typeof InstantMatchRoute
   '/messages': typeof MessagesRoute
   '/notifications': typeof NotificationsRoute
+  '/plans': typeof PlansRoute
   '/search': typeof SearchRoute
   '/wallet': typeof WalletRoute
   '/pro/adaeze': typeof ProAdaezeRoute
@@ -120,6 +128,7 @@ export interface FileRoutesById {
   '/instant-match': typeof InstantMatchRoute
   '/messages': typeof MessagesRoute
   '/notifications': typeof NotificationsRoute
+  '/plans': typeof PlansRoute
   '/search': typeof SearchRoute
   '/wallet': typeof WalletRoute
   '/pro/adaeze': typeof ProAdaezeRoute
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/instant-match'
     | '/messages'
     | '/notifications'
+    | '/plans'
     | '/search'
     | '/wallet'
     | '/pro/adaeze'
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/instant-match'
     | '/messages'
     | '/notifications'
+    | '/plans'
     | '/search'
     | '/wallet'
     | '/pro/adaeze'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/instant-match'
     | '/messages'
     | '/notifications'
+    | '/plans'
     | '/search'
     | '/wallet'
     | '/pro/adaeze'
@@ -179,6 +191,7 @@ export interface RootRouteChildren {
   InstantMatchRoute: typeof InstantMatchRoute
   MessagesRoute: typeof MessagesRoute
   NotificationsRoute: typeof NotificationsRoute
+  PlansRoute: typeof PlansRoute
   SearchRoute: typeof SearchRoute
   WalletRoute: typeof WalletRoute
   ProAdaezeRoute: typeof ProAdaezeRoute
@@ -200,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plans': {
+      id: '/plans'
+      path: '/plans'
+      fullPath: '/plans'
+      preLoaderRoute: typeof PlansRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -283,6 +303,7 @@ const rootRouteChildren: RootRouteChildren = {
   InstantMatchRoute: InstantMatchRoute,
   MessagesRoute: MessagesRoute,
   NotificationsRoute: NotificationsRoute,
+  PlansRoute: PlansRoute,
   SearchRoute: SearchRoute,
   WalletRoute: WalletRoute,
   ProAdaezeRoute: ProAdaezeRoute,
