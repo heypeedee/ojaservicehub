@@ -1,7 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { fallback, zodValidator } from "@tanstack/zod-adapter";
-import { z } from "zod";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -14,12 +12,10 @@ import {
   X,
 } from "lucide-react";
 
-const searchSchema = z.object({
-  q: fallback(z.string(), "").default(""),
-});
-
 export const Route = createFileRoute("/search")({
-  validateSearch: zodValidator(searchSchema),
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: typeof search.q === "string" ? search.q : "",
+  }),
   head: () => ({
     meta: [
       { title: "Search professionals · ServiceHub" },
