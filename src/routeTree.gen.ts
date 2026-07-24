@@ -11,12 +11,15 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as InstantMatchRouteImport } from './routes/instant-match'
 import { Route as BookRouteImport } from './routes/book'
 import { Route as AiStudioRouteImport } from './routes/ai-studio'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderBookingsRouteImport } from './routes/provider.bookings'
+import { Route as ProDashboardRouteImport } from './routes/pro.dashboard'
 import { Route as ProAdaezeRouteImport } from './routes/pro.adaeze'
 
 const WalletRoute = WalletRouteImport.update({
@@ -27,6 +30,11 @@ const WalletRoute = WalletRouteImport.update({
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -49,6 +57,11 @@ const AiStudioRoute = AiStudioRouteImport.update({
   path: '/ai-studio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -59,6 +72,11 @@ const ProviderBookingsRoute = ProviderBookingsRouteImport.update({
   path: '/provider/bookings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProDashboardRoute = ProDashboardRouteImport.update({
+  id: '/pro/dashboard',
+  path: '/pro/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProAdaezeRoute = ProAdaezeRouteImport.update({
   id: '/pro/adaeze',
   path: '/pro/adaeze',
@@ -67,83 +85,104 @@ const ProAdaezeRoute = ProAdaezeRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/ai-studio': typeof AiStudioRoute
   '/book': typeof BookRoute
   '/instant-match': typeof InstantMatchRoute
   '/messages': typeof MessagesRoute
+  '/notifications': typeof NotificationsRoute
   '/search': typeof SearchRoute
   '/wallet': typeof WalletRoute
   '/pro/adaeze': typeof ProAdaezeRoute
+  '/pro/dashboard': typeof ProDashboardRoute
   '/provider/bookings': typeof ProviderBookingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/ai-studio': typeof AiStudioRoute
   '/book': typeof BookRoute
   '/instant-match': typeof InstantMatchRoute
   '/messages': typeof MessagesRoute
+  '/notifications': typeof NotificationsRoute
   '/search': typeof SearchRoute
   '/wallet': typeof WalletRoute
   '/pro/adaeze': typeof ProAdaezeRoute
+  '/pro/dashboard': typeof ProDashboardRoute
   '/provider/bookings': typeof ProviderBookingsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/ai-studio': typeof AiStudioRoute
   '/book': typeof BookRoute
   '/instant-match': typeof InstantMatchRoute
   '/messages': typeof MessagesRoute
+  '/notifications': typeof NotificationsRoute
   '/search': typeof SearchRoute
   '/wallet': typeof WalletRoute
   '/pro/adaeze': typeof ProAdaezeRoute
+  '/pro/dashboard': typeof ProDashboardRoute
   '/provider/bookings': typeof ProviderBookingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/ai-studio'
     | '/book'
     | '/instant-match'
     | '/messages'
+    | '/notifications'
     | '/search'
     | '/wallet'
     | '/pro/adaeze'
+    | '/pro/dashboard'
     | '/provider/bookings'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/ai-studio'
     | '/book'
     | '/instant-match'
     | '/messages'
+    | '/notifications'
     | '/search'
     | '/wallet'
     | '/pro/adaeze'
+    | '/pro/dashboard'
     | '/provider/bookings'
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/ai-studio'
     | '/book'
     | '/instant-match'
     | '/messages'
+    | '/notifications'
     | '/search'
     | '/wallet'
     | '/pro/adaeze'
+    | '/pro/dashboard'
     | '/provider/bookings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   AiStudioRoute: typeof AiStudioRoute
   BookRoute: typeof BookRoute
   InstantMatchRoute: typeof InstantMatchRoute
   MessagesRoute: typeof MessagesRoute
+  NotificationsRoute: typeof NotificationsRoute
   SearchRoute: typeof SearchRoute
   WalletRoute: typeof WalletRoute
   ProAdaezeRoute: typeof ProAdaezeRoute
+  ProDashboardRoute: typeof ProDashboardRoute
   ProviderBookingsRoute: typeof ProviderBookingsRoute
 }
 
@@ -161,6 +200,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -191,6 +237,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AiStudioRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -205,6 +258,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProviderBookingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pro/dashboard': {
+      id: '/pro/dashboard'
+      path: '/pro/dashboard'
+      fullPath: '/pro/dashboard'
+      preLoaderRoute: typeof ProDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pro/adaeze': {
       id: '/pro/adaeze'
       path: '/pro/adaeze'
@@ -217,13 +277,16 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   AiStudioRoute: AiStudioRoute,
   BookRoute: BookRoute,
   InstantMatchRoute: InstantMatchRoute,
   MessagesRoute: MessagesRoute,
+  NotificationsRoute: NotificationsRoute,
   SearchRoute: SearchRoute,
   WalletRoute: WalletRoute,
   ProAdaezeRoute: ProAdaezeRoute,
+  ProDashboardRoute: ProDashboardRoute,
   ProviderBookingsRoute: ProviderBookingsRoute,
 }
 export const routeTree = rootRouteImport
