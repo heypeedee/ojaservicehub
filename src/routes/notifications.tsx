@@ -184,13 +184,13 @@ const defaultPrefs: Record<Category, Record<Channel, boolean>> = {
 export const Route = createFileRoute("/notifications")({
   head: () => ({
     meta: [
-      { title: "Notifications · ServiceHub" },
+      { title: "Notifications · Ọjà" },
       {
         name: "description",
         content:
           "Bookings, payments, messages, reviews, withdrawals, disputes, verification, promotions and security alerts — delivered via email, SMS, push and in-app.",
       },
-      { property: "og:title", content: "Notifications · ServiceHub" },
+      { property: "og:title", content: "Notifications · Ọjà" },
       { property: "og:description", content: "One inbox for every important update." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -250,7 +250,7 @@ function NotificationsPage() {
       <div className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> ServiceHub
+            <ArrowLeft className="h-4 w-4" /> Ọjà
           </Link>
           <div className="inline-flex rounded-full bg-muted p-0.5 text-xs">
             {(

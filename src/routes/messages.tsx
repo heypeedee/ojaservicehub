@@ -23,13 +23,13 @@ import {
 export const Route = createFileRoute("/messages")({
   head: () => ({
     meta: [
-      { title: "Messages · ServiceHub" },
+      { title: "Messages · Ọjà" },
       {
         name: "description",
         content:
           "Chat live with pros and customers. Read receipts, typing indicators, image sharing, voice notes, and booking updates in one thread.",
       },
-      { property: "og:title", content: "Messages · ServiceHub" },
+      { property: "og:title", content: "Messages · Ọjà" },
       { property: "og:description", content: "Real-time chat between customers and providers." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -291,7 +291,7 @@ function TopBar() {
           to="/"
           className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to ServiceHub
+          <ArrowLeft className="h-4 w-4" /> Back to Ọjà
         </Link>
         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
           <ShieldCheck className="h-3.5 w-3.5 text-primary" /> End-to-end encrypted

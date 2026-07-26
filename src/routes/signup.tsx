@@ -24,13 +24,13 @@ import {
 export const Route = createFileRoute("/signup")({
   head: () => ({
     meta: [
-      { title: "Create your account · ServiceHub" },
+      { title: "Create your account · Ọjà" },
       {
         name: "description",
         content:
-          "Join ServiceHub as a customer or list your services as a verified pro. Providers get an instant storefront the moment onboarding finishes.",
+          "Join Ọjà as a customer or list your services as a verified pro. Providers get an instant storefront the moment onboarding finishes.",
       },
-      { property: "og:title", content: "Create your account · ServiceHub" },
+      { property: "og:title", content: "Create your account · Ọjà" },
       {
         property: "og:description",
         content: "Customer or provider signup with instant storefront creation.",
@@ -180,7 +180,7 @@ function SignupPage() {
     return (
       <Shell>
         <div className="mx-auto max-w-3xl">
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Join ServiceHub</h1>
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Join Ọjà</h1>
           <p className="mt-2 text-muted-foreground">Pick how you want to start. You can switch later.</p>
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
             <RoleCard
@@ -301,7 +301,7 @@ function SignupPage() {
               <StepHead title="One last thing" sub="Agree to the community rules — kindness, honesty, and safety for everyone." />
               <label className="mt-4 flex items-start gap-2 text-sm">
                 <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-1" />
-                <span>I agree to ServiceHub's terms of service, community guidelines and privacy policy.</span>
+                <span>I agree to Ọjà's terms of service, community guidelines and privacy policy.</span>
               </label>
               <button
                 onClick={submit}
@@ -447,7 +447,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <div className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> ServiceHub
+            <ArrowLeft className="h-4 w-4" /> Ọjà
           </Link>
           <span className="text-xs font-semibold text-muted-foreground">Create your account</span>
         </div>

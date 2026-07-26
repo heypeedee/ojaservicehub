@@ -24,13 +24,13 @@ import {
 export const Route = createFileRoute("/wallet")({
   head: () => ({
     meta: [
-      { title: "HubPoints Wallet · ServiceHub" },
+      { title: "HubPoints Wallet · Ọjà" },
       {
         name: "description",
         content:
           "Manage your HubPoints earnings, track escrow-held payments, and withdraw to your bank in seconds.",
       },
-      { property: "og:title", content: "HubPoints Wallet · ServiceHub" },
+      { property: "og:title", content: "HubPoints Wallet · Ọjà" },
       {
         property: "og:description",
         content: "Escrow, earnings, withdrawals, and full transaction history.",
@@ -103,7 +103,7 @@ const seedTx: Tx[] = [
     type: "bonus",
     status: "completed",
     title: "5-review streak bonus",
-    counterparty: "ServiceHub",
+    counterparty: "Ọjà",
     amount: 2500,
     date: "Sun, Nov 17",
     ref: "BN-018",
@@ -187,7 +187,7 @@ function WalletPage() {
               Your earnings, protected end-to-end
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Every booking is held in ServiceHub escrow. Funds release to you 24h after job completion.
+              Every booking is held in Ọjà escrow. Funds release to you 24h after job completion.
             </p>
           </div>
           <button
@@ -314,10 +314,10 @@ function TopBar() {
           to="/"
           className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to ServiceHub
+          <ArrowLeft className="h-4 w-4" /> Back to Ọjà
         </Link>
         <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
-          <ShieldCheck className="h-3.5 w-3.5 text-primary" /> Escrow secured by ServiceHub Trust
+          <ShieldCheck className="h-3.5 w-3.5 text-primary" /> Escrow secured by Ọjà Trust
         </div>
       </div>
     </div>
@@ -445,7 +445,7 @@ function EscrowCard() {
           <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
             1
           </span>
-          Customer pays into ServiceHub escrow at booking.
+          Customer pays into Ọjà escrow at booking.
         </li>
         <li className="flex gap-2">
           <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">

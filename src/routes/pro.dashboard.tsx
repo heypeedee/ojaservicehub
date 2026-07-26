@@ -21,13 +21,13 @@ import {
 export const Route = createFileRoute("/pro/dashboard")({
   head: () => ({
     meta: [
-      { title: "Provider dashboard · ServiceHub" },
+      { title: "Provider dashboard · Ọjà" },
       {
         name: "description",
         content:
           "Track bookings, revenue, profile views, conversion, ratings, reviews, upcoming jobs and calendar — all in one dashboard.",
       },
-      { property: "og:title", content: "Provider dashboard · ServiceHub" },
+      { property: "og:title", content: "Provider dashboard · Ọjà" },
       { property: "og:description", content: "Bookings, revenue and calendar in one place." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -90,7 +90,7 @@ function ProviderDashboard() {
       <div className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> ServiceHub
+            <ArrowLeft className="h-4 w-4" /> Ọjà
           </Link>
           <div className="inline-flex rounded-full bg-muted p-0.5 text-xs">
             {(["7d", "30d", "90d"] as const).map((r) => (
