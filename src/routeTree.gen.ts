@@ -16,6 +16,7 @@ import { Route as PlansRouteImport } from './routes/plans'
 import { Route as OwnerRouteImport } from './routes/owner'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as MessagesRouteImport } from './routes/messages'
+import { Route as MapRouteImport } from './routes/map'
 import { Route as InstantMatchRouteImport } from './routes/instant-match'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as BookRouteImport } from './routes/book'
@@ -59,6 +60,11 @@ const NotificationsRoute = NotificationsRouteImport.update({
 const MessagesRoute = MessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MapRoute = MapRouteImport.update({
+  id: '/map',
+  path: '/map',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InstantMatchRoute = InstantMatchRouteImport.update({
@@ -114,6 +120,7 @@ export interface FileRoutesByFullPath {
   '/book': typeof BookRoute
   '/dashboard': typeof DashboardRoute
   '/instant-match': typeof InstantMatchRoute
+  '/map': typeof MapRoute
   '/messages': typeof MessagesRoute
   '/notifications': typeof NotificationsRoute
   '/owner': typeof OwnerRoute
@@ -132,6 +139,7 @@ export interface FileRoutesByTo {
   '/book': typeof BookRoute
   '/dashboard': typeof DashboardRoute
   '/instant-match': typeof InstantMatchRoute
+  '/map': typeof MapRoute
   '/messages': typeof MessagesRoute
   '/notifications': typeof NotificationsRoute
   '/owner': typeof OwnerRoute
@@ -151,6 +159,7 @@ export interface FileRoutesById {
   '/book': typeof BookRoute
   '/dashboard': typeof DashboardRoute
   '/instant-match': typeof InstantMatchRoute
+  '/map': typeof MapRoute
   '/messages': typeof MessagesRoute
   '/notifications': typeof NotificationsRoute
   '/owner': typeof OwnerRoute
@@ -171,6 +180,7 @@ export interface FileRouteTypes {
     | '/book'
     | '/dashboard'
     | '/instant-match'
+    | '/map'
     | '/messages'
     | '/notifications'
     | '/owner'
@@ -189,6 +199,7 @@ export interface FileRouteTypes {
     | '/book'
     | '/dashboard'
     | '/instant-match'
+    | '/map'
     | '/messages'
     | '/notifications'
     | '/owner'
@@ -207,6 +218,7 @@ export interface FileRouteTypes {
     | '/book'
     | '/dashboard'
     | '/instant-match'
+    | '/map'
     | '/messages'
     | '/notifications'
     | '/owner'
@@ -226,6 +238,7 @@ export interface RootRouteChildren {
   BookRoute: typeof BookRoute
   DashboardRoute: typeof DashboardRoute
   InstantMatchRoute: typeof InstantMatchRoute
+  MapRoute: typeof MapRoute
   MessagesRoute: typeof MessagesRoute
   NotificationsRoute: typeof NotificationsRoute
   OwnerRoute: typeof OwnerRoute
@@ -287,6 +300,13 @@ declare module '@tanstack/react-router' {
       path: '/messages'
       fullPath: '/messages'
       preLoaderRoute: typeof MessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/map': {
+      id: '/map'
+      path: '/map'
+      fullPath: '/map'
+      preLoaderRoute: typeof MapRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/instant-match': {
@@ -362,6 +382,7 @@ const rootRouteChildren: RootRouteChildren = {
   BookRoute: BookRoute,
   DashboardRoute: DashboardRoute,
   InstantMatchRoute: InstantMatchRoute,
+  MapRoute: MapRoute,
   MessagesRoute: MessagesRoute,
   NotificationsRoute: NotificationsRoute,
   OwnerRoute: OwnerRoute,
