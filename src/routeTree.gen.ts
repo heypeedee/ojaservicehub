@@ -14,6 +14,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as PlansRouteImport } from './routes/plans'
 import { Route as OwnerRouteImport } from './routes/owner'
+import { Route as OffersRouteImport } from './routes/offers'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as MapRouteImport } from './routes/map'
@@ -50,6 +51,11 @@ const PlansRoute = PlansRouteImport.update({
 const OwnerRoute = OwnerRouteImport.update({
   id: '/owner',
   path: '/owner',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OffersRoute = OffersRouteImport.update({
+  id: '/offers',
+  path: '/offers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -123,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/map': typeof MapRoute
   '/messages': typeof MessagesRoute
   '/notifications': typeof NotificationsRoute
+  '/offers': typeof OffersRoute
   '/owner': typeof OwnerRoute
   '/plans': typeof PlansRoute
   '/search': typeof SearchRoute
@@ -142,6 +149,7 @@ export interface FileRoutesByTo {
   '/map': typeof MapRoute
   '/messages': typeof MessagesRoute
   '/notifications': typeof NotificationsRoute
+  '/offers': typeof OffersRoute
   '/owner': typeof OwnerRoute
   '/plans': typeof PlansRoute
   '/search': typeof SearchRoute
@@ -162,6 +170,7 @@ export interface FileRoutesById {
   '/map': typeof MapRoute
   '/messages': typeof MessagesRoute
   '/notifications': typeof NotificationsRoute
+  '/offers': typeof OffersRoute
   '/owner': typeof OwnerRoute
   '/plans': typeof PlansRoute
   '/search': typeof SearchRoute
@@ -183,6 +192,7 @@ export interface FileRouteTypes {
     | '/map'
     | '/messages'
     | '/notifications'
+    | '/offers'
     | '/owner'
     | '/plans'
     | '/search'
@@ -202,6 +212,7 @@ export interface FileRouteTypes {
     | '/map'
     | '/messages'
     | '/notifications'
+    | '/offers'
     | '/owner'
     | '/plans'
     | '/search'
@@ -221,6 +232,7 @@ export interface FileRouteTypes {
     | '/map'
     | '/messages'
     | '/notifications'
+    | '/offers'
     | '/owner'
     | '/plans'
     | '/search'
@@ -241,6 +253,7 @@ export interface RootRouteChildren {
   MapRoute: typeof MapRoute
   MessagesRoute: typeof MessagesRoute
   NotificationsRoute: typeof NotificationsRoute
+  OffersRoute: typeof OffersRoute
   OwnerRoute: typeof OwnerRoute
   PlansRoute: typeof PlansRoute
   SearchRoute: typeof SearchRoute
@@ -286,6 +299,13 @@ declare module '@tanstack/react-router' {
       path: '/owner'
       fullPath: '/owner'
       preLoaderRoute: typeof OwnerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/offers': {
+      id: '/offers'
+      path: '/offers'
+      fullPath: '/offers'
+      preLoaderRoute: typeof OffersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -385,6 +405,7 @@ const rootRouteChildren: RootRouteChildren = {
   MapRoute: MapRoute,
   MessagesRoute: MessagesRoute,
   NotificationsRoute: NotificationsRoute,
+  OffersRoute: OffersRoute,
   OwnerRoute: OwnerRoute,
   PlansRoute: PlansRoute,
   SearchRoute: SearchRoute,
@@ -397,3 +418,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
