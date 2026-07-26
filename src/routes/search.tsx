@@ -18,13 +18,13 @@ export const Route = createFileRoute("/search")({
   }),
   head: () => ({
     meta: [
-      { title: "Search professionals · ServiceHub" },
+      { title: "Search professionals · Ọjà" },
       {
         name: "description",
         content:
           "Search verified pros by service, location, price, availability, rating and distance — hairdressers, chefs, electricians and more.",
       },
-      { property: "og:title", content: "Search professionals · ServiceHub" },
+      { property: "og:title", content: "Search professionals · Ọjà" },
       { property: "og:description", content: "Find the right pro fast, with powerful filters." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -172,7 +172,7 @@ function SearchPage() {
       <div className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> ServiceHub
+            <ArrowLeft className="h-4 w-4" /> Ọjà
           </Link>
           <button
             onClick={() => setShowFilters((s) => !s)}

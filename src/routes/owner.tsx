@@ -21,14 +21,14 @@ import {
 export const Route = createFileRoute("/owner")({
   head: () => ({
     meta: [
-      { title: "Owner control panel · ServiceHub" },
+      { title: "Owner control panel · Ọjà" },
       {
         name: "description",
         content:
           "Platform owner controls: toggle features, pages and banners visible to customers, providers and admins in one place.",
       },
-      { property: "og:title", content: "Owner control panel · ServiceHub" },
-      { property: "og:description", content: "Edit what each user type sees on ServiceHub." },
+      { property: "og:title", content: "Owner control panel · Ọjà" },
+      { property: "og:description", content: "Edit what each user type sees on Ọjà." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -137,7 +137,7 @@ function OwnerPanel() {
     { id: "b1", audience: "customer", message: "New: Instant Match — describe what you need and get top pros in seconds.", tone: "info", on: true },
     { id: "b2", audience: "provider", message: "Premium is 20% off this month — unlock featured placement and AI tools.", tone: "success", on: true },
   ]);
-  const [brand, setBrand] = useState({ name: "ServiceHub", tagline: "Find trusted professionals around you", accent: "teal" });
+  const [brand, setBrand] = useState({ name: "Ọjà", tagline: "Find trusted professionals around you", accent: "teal" });
   const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -177,7 +177,7 @@ function OwnerPanel() {
       <div className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> ServiceHub
+            <ArrowLeft className="h-4 w-4" /> Ọjà
           </Link>
           <div className="flex items-center gap-2">
             {saved && <span className="text-xs font-semibold text-emerald-600">Saved ✓</span>}
@@ -199,7 +199,7 @@ function OwnerPanel() {
           </span>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Owner control panel</h1>
           <p className="text-sm text-muted-foreground">
-            Edit what each type of user sees across ServiceHub — features, navigation, banners and branding. Changes go live the moment you publish.
+            Edit what each type of user sees across Ọjà — features, navigation, banners and branding. Changes go live the moment you publish.
           </p>
         </header>
 
@@ -261,7 +261,7 @@ function OwnerPanel() {
             {tab === "features" && (
               <div className="space-y-6">
                 <p className="rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
-                  {audienceMeta[audience].sub} Turn features off to hide them from every {audienceMeta[audience].label.toLowerCase().slice(0, -1)} on ServiceHub — pages, nav entries and cross-links all disappear together.
+                  {audienceMeta[audience].sub} Turn features off to hide them from every {audienceMeta[audience].label.toLowerCase().slice(0, -1)} on Ọjà — pages, nav entries and cross-links all disappear together.
                 </p>
                 {Object.entries(grouped).map(([group, feats]) => (
                   <section key={group} className="rounded-2xl border border-border bg-card p-5 shadow-sm">

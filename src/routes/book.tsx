@@ -17,13 +17,13 @@ import {
 export const Route = createFileRoute("/book")({
   head: () => ({
     meta: [
-      { title: "Book a pro · ServiceHub" },
+      { title: "Book a pro · Ọjà" },
       {
         name: "description",
         content:
           "Pick a service, date and time, add instructions and photos, and send your booking request to a verified professional.",
       },
-      { property: "og:title", content: "Book a pro · ServiceHub" },
+      { property: "og:title", content: "Book a pro · Ọjà" },
       { property: "og:description", content: "Escrow-protected bookings in minutes." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -188,7 +188,7 @@ function TopBar() {
     <div className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Back to ServiceHub
+          <ArrowLeft className="h-4 w-4" /> Back to Ọjà
         </Link>
         <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
           <ShieldCheck className="h-4 w-4 text-primary" />

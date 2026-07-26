@@ -56,13 +56,13 @@ const sections: { id: Section; label: string; icon: typeof Shield }[] = [
 export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
-      { title: "Admin panel · ServiceHub" },
+      { title: "Admin panel · Ọjà" },
       {
         name: "description",
         content:
-          "Moderate users and providers, verify identities, resolve disputes, approve payouts, and monitor fraud across the ServiceHub platform.",
+          "Moderate users and providers, verify identities, resolve disputes, approve payouts, and monitor fraud across the Ọjà platform.",
       },
-      { property: "og:title", content: "Admin panel · ServiceHub" },
+      { property: "og:title", content: "Admin panel · Ọjà" },
       { property: "og:description", content: "Trust & safety, payouts, and platform operations." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -80,7 +80,7 @@ function AdminPanel() {
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2">
             <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-4 w-4" /> ServiceHub
+              <ArrowLeft className="h-4 w-4" /> Ọjà
             </Link>
             <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
               <Shield className="h-3 w-3" /> Admin
@@ -181,7 +181,7 @@ function StatCard({ icon: Icon, label, value, sub }: { icon: typeof Users; label
 
 function Overview({ onGo }: { onGo: (s: Section) => void }) {
   return (
-    <Section title="Platform overview" subtitle="A snapshot of trust & safety and financial health across ServiceHub.">
+    <Section title="Platform overview" subtitle="A snapshot of trust & safety and financial health across Ọjà.">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={Users} label="Users" value="12,481" sub="+128 / 7d" />
         <StatCard icon={BadgeCheck} label="Active providers" value="1,942" sub="+34 / 7d" />

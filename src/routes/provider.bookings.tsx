@@ -14,13 +14,13 @@ import {
 export const Route = createFileRoute("/provider/bookings")({
   head: () => ({
     meta: [
-      { title: "Bookings · Provider · ServiceHub" },
+      { title: "Bookings · Provider · Ọjà" },
       {
         name: "description",
         content:
           "Accept or decline booking requests, view your upcoming jobs, and track completed work.",
       },
-      { property: "og:title", content: "Provider bookings · ServiceHub" },
+      { property: "og:title", content: "Provider bookings · Ọjà" },
       {
         property: "og:description",
         content: "Manage incoming bookings, upcoming jobs, and completed work.",
@@ -155,7 +155,7 @@ function ProviderBookings() {
             to="/"
             className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
           >
-            <ArrowLeft className="h-4 w-4" /> Back to ServiceHub
+            <ArrowLeft className="h-4 w-4" /> Back to Ọjà
           </Link>
           <div className="hidden items-center gap-2 sm:flex">
             <div className="grid h-8 w-8 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">

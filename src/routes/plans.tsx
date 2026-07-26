@@ -30,13 +30,13 @@ const PRICE = {
 export const Route = createFileRoute("/plans")({
   head: () => ({
     meta: [
-      { title: "Plans & pricing · ServiceHub" },
+      { title: "Plans & pricing · Ọjà" },
       {
         name: "description",
         content:
-          "Compare ServiceHub Free and Premium. Get unlimited services, featured placement, AI tools, advanced analytics, verification badge, and booking automation.",
+          "Compare Ọjà Free and Premium. Get unlimited services, featured placement, AI tools, advanced analytics, verification badge, and booking automation.",
       },
-      { property: "og:title", content: "Plans & pricing · ServiceHub" },
+      { property: "og:title", content: "Plans & pricing · Ọjà" },
       { property: "og:description", content: "Free forever. Upgrade to Premium to grow faster." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -59,7 +59,7 @@ function PlansPage() {
       <header className="sticky top-0 z-20 border-b border-border/60 bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> ServiceHub
+            <ArrowLeft className="h-4 w-4" /> Ọjà
           </Link>
           <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
             <Crown className="h-3 w-3" /> Plans & pricing
@@ -70,7 +70,7 @@ function PlansPage() {
       <section className="mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6">
         <div className="mx-auto max-w-2xl text-center">
           <span className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            <Sparkles className="h-3 w-3 text-primary" /> Grow with ServiceHub
+            <Sparkles className="h-3 w-3 text-primary" /> Grow with Ọjà
           </span>
           <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
             Start free. Upgrade when you're ready to win bigger jobs.
@@ -191,7 +191,7 @@ function PlansPage() {
             <Perk icon={LineChart} title="Advanced analytics" body="Funnel, cohort retention, conversion by service and traffic source." />
             <Perk icon={Bot} title="AI Studio" body="Write descriptions, price services, and reply to reviews in one click." />
             <Perk icon={BadgeCheck} title="Verified badge" body="Stand out with an identity- and background-checked trust mark." />
-            <Perk icon={Globe} title="Custom domain" body="Point yourname.com straight to your ServiceHub storefront." />
+            <Perk icon={Globe} title="Custom domain" body="Point yourname.com straight to your Ọjà storefront." />
             <Perk icon={Calendar} title="Booking automation" body="Auto-accept trusted repeat clients, auto-decline out-of-hours." />
             <Perk icon={Headphones} title="Priority support" body="Real humans respond in under 4 hours, 7 days a week." />
             <Perk icon={Shield} title="Lower fees" body="Withdraw earnings at 1.5% instead of the standard 3%." />

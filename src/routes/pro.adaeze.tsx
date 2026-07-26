@@ -21,13 +21,13 @@ import {
 export const Route = createFileRoute("/pro/adaeze")({
   head: () => ({
     meta: [
-      { title: "Adaeze Okoye · Platinum Pro · ServiceHub" },
+      { title: "Adaeze Okoye · Platinum Pro · Ọjà" },
       {
         name: "description",
         content:
           "Verified bridal hair & makeup pro in Lekki. See trust score, background verification, 214 verified reviews with photos and videos.",
       },
-      { property: "og:title", content: "Adaeze Okoye · Platinum Pro · ServiceHub" },
+      { property: "og:title", content: "Adaeze Okoye · Platinum Pro · Ọjà" },
       {
         property: "og:description",
         content: "Trust profile, verified reviews, and job history.",
@@ -262,7 +262,7 @@ function TopBar() {
           to="/"
           className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to ServiceHub
+          <ArrowLeft className="h-4 w-4" /> Back to Ọjà
         </Link>
         <a href="#reviews" className="text-sm font-medium text-primary hover:underline">
           Jump to reviews
@@ -360,7 +360,7 @@ function VerificationList() {
         <FileCheck2 className="h-5 w-5 text-primary" /> Verification
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Independently checked by ServiceHub's trust & safety team.
+        Independently checked by Ọjà's trust & safety team.
       </p>
       <ul className="mt-4 grid gap-2 sm:grid-cols-2">
         {pro.verifications.map((v) => (
