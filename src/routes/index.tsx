@@ -154,6 +154,7 @@ function Header() {
         <nav className="hidden items-center gap-8 text-sm font-medium text-muted-foreground md:flex">
           <a href="#categories" className="transition-colors hover:text-foreground">Explore</a>
           <a href="#featured" className="transition-colors hover:text-foreground">Professionals</a>
+          <Link to="/map" className="transition-colors hover:text-foreground">Lagos map</Link>
           <Link to="/dashboard" className="transition-colors hover:text-foreground">My dashboard</Link>
           <Link to="/pro/dashboard" className="transition-colors hover:text-foreground">For business</Link>
         </nav>
