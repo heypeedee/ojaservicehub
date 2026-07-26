@@ -154,8 +154,8 @@ function Header() {
         <nav className="hidden items-center gap-8 text-sm font-medium text-muted-foreground md:flex">
           <a href="#categories" className="transition-colors hover:text-foreground">Explore</a>
           <a href="#featured" className="transition-colors hover:text-foreground">Professionals</a>
-          <a href="#how" className="transition-colors hover:text-foreground">How it works</a>
-          <a href="#app" className="transition-colors hover:text-foreground">Get the app</a>
+          <Link to="/dashboard" className="transition-colors hover:text-foreground">My dashboard</Link>
+          <Link to="/pro/dashboard" className="transition-colors hover:text-foreground">For business</Link>
         </nav>
         <div className="flex items-center gap-2">
           <Link
