@@ -32,7 +32,14 @@ export const Route = createFileRoute("/messages")({
   component: MessagesPage,
 });
 
-type Profile = { id: string; display_name: string | null; avatar_url: string | null };
+type Profile = {
+  id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  username?: string | null;
+  full_name?: string | null;
+  shop_name?: string | null;
+};
 type Conversation = { id: string; title: string | null; updated_at: string; created_by: string | null };
 type ChatMessage = {
   id: string;
