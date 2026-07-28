@@ -703,10 +703,11 @@ function NewChatDialog({
         return;
       }
       setLoading(true);
+      const needle = q.trim().replace(/^@/, "");
       const { data } = await supabase
         .from("profiles")
-        .select("id, display_name, avatar_url")
-        .ilike("display_name", `%${q.trim()}%`)
+        .select("id, display_name, avatar_url, username, full_name, shop_name")
+        .or(`username.ilike.%${needle}%,display_name.ilike.%${needle}%,shop_name.ilike.%${needle}%`)
         .neq("id", userId)
         .limit(10);
       setResults((data as Profile[] | null) ?? []);
