@@ -104,22 +104,31 @@ export type Database = {
           avatar_url: string | null
           created_at: string
           display_name: string | null
+          full_name: string | null
           id: string
+          shop_name: string | null
           updated_at: string
+          username: string | null
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
+          full_name?: string | null
           id: string
+          shop_name?: string | null
           updated_at?: string
+          username?: string | null
         }
         Update: {
           avatar_url?: string | null
           created_at?: string
           display_name?: string | null
+          full_name?: string | null
           id?: string
+          shop_name?: string | null
           updated_at?: string
+          username?: string | null
         }
         Relationships: []
       }
@@ -128,6 +137,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_unique_username: { Args: { seed: string }; Returns: string }
       is_participant: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean

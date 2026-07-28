@@ -32,7 +32,14 @@ export const Route = createFileRoute("/messages")({
   component: MessagesPage,
 });
 
-type Profile = { id: string; display_name: string | null; avatar_url: string | null };
+type Profile = {
+  id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  username?: string | null;
+  full_name?: string | null;
+  shop_name?: string | null;
+};
 type Conversation = { id: string; title: string | null; updated_at: string; created_by: string | null };
 type ChatMessage = {
   id: string;
@@ -42,6 +49,17 @@ type ChatMessage = {
   image_url: string | null;
   created_at: string;
 };
+
+function nameFor(p: Profile | null | undefined): string {
+  if (!p) return "Someone";
+  return p.username ? `@${p.username}` : p.display_name ?? "Ọjà member";
+}
+
+function nameWithShop(p: Profile | null | undefined): string {
+  if (!p) return "Someone";
+  const primary = nameFor(p);
+  return p.shop_name ? `${primary} · ${p.shop_name}` : primary;
+}
 
 function MessagesPage() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -68,10 +86,15 @@ function AuthGate() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [shopName, setShopName] = useState("");
+  const [isOwner, setIsOwner] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  const usernameOk = /^[a-zA-Z][a-zA-Z0-9_]{2,23}$/.test(username);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -80,11 +103,25 @@ function AuthGate() {
     setNotice(null);
     try {
       if (mode === "signup") {
+        if (!usernameOk) throw new Error("Username must be 3–24 chars, letters/numbers/underscore, start with a letter.");
+        if (!fullName.trim()) throw new Error("Please enter your full name.");
+        // Pre-check uniqueness (case-insensitive)
+        const { data: taken } = await supabase
+          .from("profiles")
+          .select("id")
+          .ilike("username", username)
+          .limit(1);
+        if (taken && taken.length) throw new Error("That username is taken. Try another.");
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            data: { display_name: displayName || email.split("@")[0] },
+            data: {
+              username,
+              display_name: fullName.trim(),
+              full_name: fullName.trim(),
+              shop_name: isOwner && shopName.trim() ? shopName.trim() : null,
+            },
             emailRedirectTo: `${window.location.origin}/messages`,
           },
         });
@@ -103,25 +140,62 @@ function AuthGate() {
   }
 
   return (
-    <div className="grid min-h-screen place-items-center bg-muted/40 px-4">
+    <div className="grid min-h-screen place-items-center bg-muted/40 px-4 py-10">
       <div className="w-full max-w-md rounded-3xl border border-border bg-card p-8 shadow-sm">
         <Link to="/" className="mb-6 inline-flex items-center gap-2">
           <OjaLogo size={36} />
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">
-          {mode === "signin" ? "Sign in to chat" : "Create your Ọjà account"}
+          {mode === "signin" ? "Sign in to Ọjà" : "Claim your Ọjà @username"}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Real-time chat is protected — messages only sync between people in the same conversation.
+          {mode === "signin"
+            ? "Sign in to chat, bargain and manage your bookings."
+            : "Your @username is your public identity across reviews, chats, bookings and offers."}
         </p>
         <form onSubmit={submit} className="mt-6 space-y-3">
           {mode === "signup" && (
-            <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Display name"
-              className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
-            />
+            <>
+              <div>
+                <div className="flex items-stretch overflow-hidden rounded-2xl border border-border bg-background focus-within:border-primary">
+                  <span className="grid place-items-center border-r border-border bg-muted/60 px-3 text-sm font-semibold text-muted-foreground">@</span>
+                  <input
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value.replace(/\s+/g, ""))}
+                    placeholder="yourname"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    className="w-full bg-transparent px-3 py-3 text-sm outline-none"
+                  />
+                </div>
+                <p className={`mt-1 text-[11px] ${username && !usernameOk ? "text-destructive" : "text-muted-foreground"}`}>
+                  3–24 chars, letters/numbers/underscore, must start with a letter.
+                </p>
+              </div>
+              <input
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Full name (kept private on your profile)"
+                className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
+              />
+              <label className="flex items-center gap-2 rounded-2xl border border-border bg-background px-4 py-3 text-xs">
+                <input
+                  type="checkbox"
+                  checked={isOwner}
+                  onChange={(e) => setIsOwner(e.target.checked)}
+                  className="h-4 w-4 accent-[oklch(var(--primary))]"
+                />
+                <span>I'm a market owner / service provider — add a shop name</span>
+              </label>
+              {isOwner && (
+                <input
+                  value={shopName}
+                  onChange={(e) => setShopName(e.target.value)}
+                  placeholder="Shop name (shown next to @username)"
+                  className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
+                />
+              )}
+            </>
           )}
           <input
             type="email"
@@ -199,7 +273,7 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
       const userIds = Array.from(new Set((parts ?? []).map((p: any) => p.user_id)));
       const { data: profs } = await supabase
         .from("profiles")
-        .select("id, display_name, avatar_url")
+        .select("id, display_name, avatar_url, username, full_name, shop_name")
         .in("id", userIds);
       const profileMap = new Map<string, Profile>((profs ?? []).map((p: any) => [p.id, p]));
       const grouped: Record<string, Profile[]> = {};
@@ -263,6 +337,8 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
         </div>
       </header>
 
+      {me && !me.username && <ProfileSetupBanner userId={userId} onDone={refresh} />}
+
       <div className="mx-auto grid max-w-7xl gap-4 px-4 py-6 sm:px-6 lg:grid-cols-[320px_1fr] lg:px-8">
         <ConvoList
           me={me}
@@ -297,6 +373,58 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
   );
 }
 
+function ProfileSetupBanner({ userId, onDone }: { userId: string; onDone: () => void }) {
+  const [username, setUsername] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [shopName, setShopName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const ok = /^[a-zA-Z][a-zA-Z0-9_]{2,23}$/.test(username);
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    if (!ok) { setErr("Username must be 3–24 chars, letters/numbers/underscore, start with a letter."); return; }
+    if (!fullName.trim()) { setErr("Please enter your full name."); return; }
+    setSaving(true);
+    const { data: taken } = await supabase
+      .from("profiles").select("id").ilike("username", username).neq("id", userId).limit(1);
+    if (taken && taken.length) { setErr("That username is taken."); setSaving(false); return; }
+    const { error } = await supabase.from("profiles").update({
+      username,
+      full_name: fullName.trim(),
+      display_name: fullName.trim(),
+      shop_name: shopName.trim() || null,
+    }).eq("id", userId);
+    setSaving(false);
+    if (error) { setErr(error.message); return; }
+    onDone();
+  }
+
+  return (
+    <div className="mx-auto mt-4 max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="rounded-3xl border border-brand/30 bg-brand-soft p-5 shadow-sm">
+        <p className="text-sm font-semibold text-brand">Claim your public @username</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Your username is how others find you in reviews, chats, bookings and offers. Pick something you'll keep — you can also add a shop name if you sell services.
+        </p>
+        <form onSubmit={save} className="mt-4 grid gap-2 md:grid-cols-4">
+          <div className="flex items-stretch overflow-hidden rounded-2xl border border-border bg-background focus-within:border-primary md:col-span-1">
+            <span className="grid place-items-center border-r border-border bg-muted/60 px-3 text-sm font-semibold text-muted-foreground">@</span>
+            <input value={username} onChange={(e) => setUsername(e.target.value.replace(/\s+/g, ""))} placeholder="username" className="w-full bg-transparent px-3 py-2.5 text-sm outline-none" />
+          </div>
+          <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full name" className="rounded-2xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary md:col-span-1" />
+          <input value={shopName} onChange={(e) => setShopName(e.target.value)} placeholder="Shop name (optional)" className="rounded-2xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary md:col-span-1" />
+          <button type="submit" disabled={saving} className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60 md:col-span-1">
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}Save identity
+          </button>
+        </form>
+        {err && <p className="mt-2 rounded-xl bg-destructive/10 px-3 py-2 text-xs text-destructive">{err}</p>}
+      </div>
+    </div>
+  );
+}
+
 function ConvoList({
   me,
   conversations,
@@ -322,7 +450,7 @@ function ConvoList({
     const needle = q.toLowerCase();
     return conversations.filter((c) => {
       const others = (participantsByConvo[c.id] ?? []).filter((p) => p.id !== userId);
-      const names = others.map((o) => o.display_name ?? "").join(" ").toLowerCase();
+      const names = others.map((o) => `${o.display_name ?? ""} ${o.username ?? ""} ${o.shop_name ?? ""}`).join(" ").toLowerCase();
       return (c.title ?? "").toLowerCase().includes(needle) || names.includes(needle);
     });
   }, [q, conversations, participantsByConvo, userId]);
@@ -331,9 +459,9 @@ function ConvoList({
     <aside className="rounded-3xl border border-border bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-semibold">Signed in as</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {me?.display_name ?? "You"}
+          <p className="text-sm font-semibold">{nameFor(me)}</p>
+          <p className="truncate text-[11px] text-muted-foreground">
+            {me?.shop_name ? me.shop_name : me?.full_name ?? "Complete your profile below"}
           </p>
         </div>
         <button
@@ -365,7 +493,7 @@ function ConvoList({
         )}
         {filtered.map((c) => {
           const others = (participantsByConvo[c.id] ?? []).filter((p) => p.id !== userId);
-          const title = c.title || others.map((o) => o.display_name ?? "Someone").join(", ") || "New chat";
+          const title = c.title || others.map((o) => nameWithShop(o)).join(", ") || "New chat";
           const initials = (title || "?").slice(0, 1).toUpperCase();
           const active = c.id === activeId;
           return (
@@ -501,7 +629,7 @@ function ChatPane({
     );
   }
 
-  const title = conversation.title || others.map((o) => o.display_name ?? "Someone").join(", ") || "Chat";
+  const title = conversation.title || others.map((o) => nameWithShop(o)).join(", ") || "Chat";
 
   return (
     <section className="flex min-h-[70vh] flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
@@ -540,7 +668,7 @@ function ChatPane({
               >
                 {!mine && (
                   <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {sender?.display_name ?? "Someone"}
+                    {nameWithShop(sender)}
                   </p>
                 )}
                 {m.image_url && (
@@ -629,10 +757,11 @@ function NewChatDialog({
         return;
       }
       setLoading(true);
+      const needle = q.trim().replace(/^@/, "");
       const { data } = await supabase
         .from("profiles")
-        .select("id, display_name, avatar_url")
-        .ilike("display_name", `%${q.trim()}%`)
+        .select("id, display_name, avatar_url, username, full_name, shop_name")
+        .or(`username.ilike.%${needle}%,display_name.ilike.%${needle}%,shop_name.ilike.%${needle}%`)
         .neq("id", userId)
         .limit(10);
       setResults((data as Profile[] | null) ?? []);
@@ -679,7 +808,7 @@ function NewChatDialog({
           <h2 className="text-lg font-semibold">Start a new chat</h2>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          Search for someone on Ọjà by their display name.
+          Search by @username, display name, or shop name.
         </p>
         <div className="mt-4 flex items-center gap-2 rounded-2xl border border-border bg-background px-3">
           <Search className="h-4 w-4 text-muted-foreground" />
@@ -687,7 +816,7 @@ function NewChatDialog({
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="e.g. Adaeze"
+            placeholder="e.g. @adaeze or Ada's Kitchen"
             className="w-full bg-transparent py-2.5 text-sm outline-none"
           />
         </div>
@@ -710,10 +839,15 @@ function NewChatDialog({
                 className="flex w-full items-center gap-3 rounded-2xl border border-border bg-background p-2.5 text-left hover:border-primary/40 disabled:opacity-60"
               >
                 <div className="grid h-10 w-10 place-items-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                  {(p.display_name ?? "?").slice(0, 1).toUpperCase()}
+                  {(p.username ?? p.display_name ?? "?").slice(0, 1).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">{p.display_name ?? "Ọjà member"}</p>
+                  <p className="truncate text-sm font-semibold">{nameFor(p)}</p>
+                  {(p.shop_name || p.display_name) && (
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {p.shop_name ?? p.display_name}
+                    </p>
+                  )}
                 </div>
                 {creating && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
               </button>
