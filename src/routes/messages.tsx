@@ -575,7 +575,7 @@ function ChatPane({
     );
   }
 
-  const title = conversation.title || others.map((o) => o.display_name ?? "Someone").join(", ") || "Chat";
+  const title = conversation.title || others.map((o) => nameWithShop(o)).join(", ") || "Chat";
 
   return (
     <section className="flex min-h-[70vh] flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
