@@ -25,6 +25,7 @@ import {
   Wallet,
   X,
 } from "lucide-react";
+import { BackNav } from "@/components/BackNav";
 
 type Section =
   | "overview"
@@ -79,9 +80,7 @@ function AdminPanel() {
       <div className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2">
-            <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-4 w-4" /> Ọjà
-            </Link>
+            <BackNav label="Ọjà" />
             <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
               <Shield className="h-3 w-3" /> Admin
             </span>
