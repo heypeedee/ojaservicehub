@@ -396,7 +396,7 @@ function ConvoList({
     const needle = q.toLowerCase();
     return conversations.filter((c) => {
       const others = (participantsByConvo[c.id] ?? []).filter((p) => p.id !== userId);
-      const names = others.map((o) => o.display_name ?? "").join(" ").toLowerCase();
+      const names = others.map((o) => `${o.display_name ?? ""} ${o.username ?? ""} ${o.shop_name ?? ""}`).join(" ").toLowerCase();
       return (c.title ?? "").toLowerCase().includes(needle) || names.includes(needle);
     });
   }, [q, conversations, participantsByConvo, userId]);
