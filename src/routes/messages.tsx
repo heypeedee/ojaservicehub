@@ -405,9 +405,9 @@ function ConvoList({
     <aside className="rounded-3xl border border-border bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-semibold">Signed in as</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {me?.display_name ?? "You"}
+          <p className="text-sm font-semibold">{nameFor(me)}</p>
+          <p className="truncate text-[11px] text-muted-foreground">
+            {me?.shop_name ? me.shop_name : me?.full_name ?? "Complete your profile below"}
           </p>
         </div>
         <button
