@@ -376,7 +376,7 @@ function SearchPage() {
                     </div>
                     <div className="flex w-full flex-col items-stretch gap-1 sm:w-auto sm:items-end">
                       <p className="text-right text-sm font-semibold">from ₦{p.priceFrom.toLocaleString()}</p>
-                      <Link to="/book" className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90">Book</Link>
+                      <Link to="/book" search={{ providerId: p.id }} className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90">Book</Link>
                     </div>
                   </div>
                 </li>

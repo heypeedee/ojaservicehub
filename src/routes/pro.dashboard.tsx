@@ -86,20 +86,16 @@ type CustomerMsg = {
   avatar: string;
 };
 
-const initialServices: Service[] = [
-  { id: "s1", title: "Bridal Hair & Makeup", category: "Beauty", price: 45000, duration: "3 hrs", active: true },
-  { id: "s2", title: "Signature party glam", category: "Beauty", price: 25000, duration: "1.5 hrs", active: true },
-  { id: "s3", title: "Bridal trial session", category: "Beauty", price: 15000, duration: "1 hr", active: true },
-  { id: "s4", title: "Home service surcharge", category: "Add-on", price: 5000, duration: "—", active: false },
-];
-
-const initialBookings: Booking[] = [
-  { id: "o1", customer: "Amaka N.", service: "Bridal Hair & Makeup", when: "Sat 28 Nov · 9:00am", amount: 45000, status: "Confirmed" },
-  { id: "o2", customer: "Tolu B.", service: "Signature party glam", when: "Sun 29 Nov · 2:00pm", amount: 25000, status: "New" },
-  { id: "o3", customer: "Ijeoma R.", service: "Bridal trial", when: "Wed 25 Nov · 11:00am", amount: 15000, status: "In progress" },
-  { id: "o4", customer: "Blessing K.", service: "Signature party glam", when: "Mon 23 Nov", amount: 25000, status: "Completed" },
-  { id: "o5", customer: "Fikayo A.", service: "Bridal Hair & Makeup", when: "Sat 21 Nov", amount: 45000, status: "Completed" },
-];
+type BookingRow = {
+  id: string;
+  service_title: string;
+  amount: number;
+  status: string;
+  scheduled_at: string | null;
+  location: string | null;
+  customer_id: string;
+  profiles: { display_name: string | null; full_name: string | null } | null;
+};
 
 const initialMessages: CustomerMsg[] = [
   { id: "m1", customer: "Amaka N.", preview: "Can we move the trial to 10am?", when: "12m", unread: true, avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=100&q=80" },
@@ -114,37 +110,160 @@ const formatNaira = (n: number) => `₦${n.toLocaleString("en-NG")}`;
 
 function ProDashboard() {
   const [section, setSection] = useState<Section>("overview");
-  const [services, setServices] = useState<Service[]>(initialServices);
-  const [bookings, setBookings] = useState<Booking[]>(initialBookings);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [shopName, setShopName] = useState<string>("Your shop");
+  const [verified, setVerified] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
+
+  const [services, setServices] = useState<Service[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [messages, setMessages] = useState<CustomerMsg[]>(initialMessages);
   const [editService, setEditService] = useState<Service | null>(null);
   const [replyTarget, setReplyTarget] = useState<CustomerMsg | null>(null);
   const [showWithdraw, setShowWithdraw] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!active) return;
+      const uid = session?.user?.id ?? null;
+      setUserId(uid);
+      if (!uid) {
+        setLoadingData(false);
+        return;
+      }
+
+      const [{ data: profile }, { data: svcRows }, { data: bookingRows }] = await Promise.all([
+        supabase.from("provider_profiles").select("business_name, verified").eq("id", uid).maybeSingle(),
+        supabase.from("services").select("*").eq("provider_id", uid).order("created_at"),
+        supabase
+          .from("bookings")
+          .select("id, service_title, amount, status, scheduled_at, location, customer_id, profiles(display_name, full_name)")
+          .eq("provider_id", uid)
+          .order("created_at", { ascending: false }),
+      ]);
+      if (!active) return;
+
+      if (profile) {
+        setShopName(profile.business_name);
+        setVerified(profile.verified);
+      }
+      setServices(
+        (svcRows ?? []).map((s) => ({
+          id: s.id,
+          title: s.title,
+          category: s.category,
+          price: Number(s.price),
+          duration: s.duration ?? "—",
+          active: s.active,
+        }))
+      );
+      setBookings(
+        ((bookingRows as unknown as BookingRow[]) ?? []).map((b) => ({
+          id: b.id,
+          customer: b.profiles?.display_name || b.profiles?.full_name || "Customer",
+          service: b.service_title,
+          when: b.scheduled_at ? new Date(b.scheduled_at).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" }) : "—",
+          amount: Number(b.amount),
+          status: b.status as Booking["status"],
+        }))
+      );
+      setLoadingData(false);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const completedRevenue = bookings.filter((b) => b.status === "Completed").reduce((s, b) => s + b.amount, 0);
   const pendingRevenue = bookings.filter((b) => b.status !== "Completed" && b.status !== "Cancelled").reduce((s, b) => s + b.amount, 0);
   const activeServices = services.filter((s) => s.active).length;
   const unread = messages.filter((m) => m.unread).length;
 
-  const saveService = (s: Service) => {
-    setServices((prev) => {
-      if (prev.find((p) => p.id === s.id)) return prev.map((p) => (p.id === s.id ? s : p));
-      return [...prev, s];
-    });
+  async function saveService(s: Service) {
+    if (!userId) return;
+    const isNew = !services.find((p) => p.id === s.id);
+    if (isNew) {
+      const { data, error } = await supabase
+        .from("services")
+        .insert({
+          provider_id: userId,
+          title: s.title,
+          category: s.category,
+          price: s.price,
+          duration: s.duration,
+          active: s.active,
+        })
+        .select()
+        .single();
+      if (!error && data) {
+        setServices((prev) => [...prev, { id: data.id, title: data.title, category: data.category, price: Number(data.price), duration: data.duration ?? "—", active: data.active }]);
+      }
+    } else {
+      const { error } = await supabase
+        .from("services")
+        .update({ title: s.title, category: s.category, price: s.price, duration: s.duration, active: s.active })
+        .eq("id", s.id)
+        .eq("provider_id", userId);
+      if (!error) {
+        setServices((prev) => prev.map((p) => (p.id === s.id ? s : p)));
+      }
+    }
     setEditService(null);
-  };
-  const deleteService = (id: string) => setServices((prev) => prev.filter((p) => p.id !== id));
-  const toggleActive = (id: string) =>
-    setServices((prev) => prev.map((p) => (p.id === id ? { ...p, active: !p.active } : p)));
-  const updateBookingStatus = (id: string, status: Booking["status"]) =>
-    setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, status } : b)));
+  }
+
+  async function deleteService(id: string) {
+    if (!userId) return;
+    const { error } = await supabase.from("services").delete().eq("id", id).eq("provider_id", userId);
+    if (!error) setServices((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  async function toggleActive(id: string) {
+    if (!userId) return;
+    const current = services.find((p) => p.id === id);
+    if (!current) return;
+    const { error } = await supabase
+      .from("services")
+      .update({ active: !current.active })
+      .eq("id", id)
+      .eq("provider_id", userId);
+    if (!error) setServices((prev) => prev.map((p) => (p.id === id ? { ...p, active: !p.active } : p)));
+  }
+
+  async function updateBookingStatus(id: string, status: Booking["status"]) {
+    if (!userId) return;
+    const { error } = await supabase.from("bookings").update({ status }).eq("id", id).eq("provider_id", userId);
+    if (!error) setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, status } : b)));
+  }
+
   const markRead = (id: string) => setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, unread: false } : m)));
+
+  if (loadingData) {
+    return <div className="grid min-h-screen place-items-center text-sm text-muted-foreground">Loading your dashboard…</div>;
+  }
+
+  if (!userId) {
+    return (
+      <div className="grid min-h-screen place-items-center px-4 text-center">
+        <div>
+          <p className="font-semibold text-foreground">Sign in to view your business dashboard.</p>
+          <Link to="/signup" className="mt-3 inline-flex items-center gap-1 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground">
+            Sign in / create account
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-muted/40">
       <Topbar unread={unread} />
       <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[240px_1fr] lg:px-8">
-        <Sidebar section={section} setSection={setSection} unread={unread} />
+        <Sidebar section={section} setSection={setSection} unread={unread} shopName={shopName} verified={verified} />
         <main className="min-w-0">
           {section === "overview" && (
             <Overview
@@ -247,16 +366,34 @@ const NAV: { key: Section; label: string; icon: typeof Home }[] = [
   { key: "settings", label: "Settings", icon: Settings },
 ];
 
-function Sidebar({ section, setSection, unread }: { section: Section; setSection: (s: Section) => void; unread: number }) {
+function Sidebar({
+  section,
+  setSection,
+  unread,
+  shopName,
+  verified,
+}: {
+  section: Section;
+  setSection: (s: Section) => void;
+  unread: number;
+  shopName: string;
+  verified: boolean;
+}) {
   return (
     <aside className="lg:sticky lg:top-20 lg:h-fit">
       <div className="rounded-3xl border border-border bg-card p-3 shadow-sm">
         <div className="mb-2 px-3 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Your shop</p>
-          <p className="mt-1 truncate text-sm font-semibold">Adaeze O. · Bridal Beauty</p>
-          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[10px] font-semibold text-brand">
-            <ShieldCheck className="h-3 w-3" /> Verified
-          </span>
+          <p className="mt-1 truncate text-sm font-semibold">{shopName}</p>
+          {verified ? (
+            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[10px] font-semibold text-brand">
+              <ShieldCheck className="h-3 w-3" /> Verified
+            </span>
+          ) : (
+            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+              Not verified yet
+            </span>
+          )}
         </div>
         <nav className="space-y-1">
           {NAV.map((n) => {

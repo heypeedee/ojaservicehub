@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,8 +13,13 @@ import {
   Star,
   X,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { BackNav } from "@/components/BackNav";
 
 export const Route = createFileRoute("/book")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    providerId: typeof search.providerId === "string" ? search.providerId : "",
+  }),
   head: () => ({
     meta: [
       { title: "Book a pro · Ọjà" },
@@ -32,22 +37,18 @@ export const Route = createFileRoute("/book")({
   component: BookPage,
 });
 
-const provider = {
-  name: "Adaeze Okoye",
-  craft: "Bridal Hair & Makeup",
-  area: "Lekki Phase 1, Lagos",
-  rating: 4.98,
-  reviews: 214,
-  tier: "Platinum",
-  initials: "AO",
+type ProviderInfo = {
+  id: string;
+  name: string;
+  craft: string;
+  area: string;
+  rating: number;
+  reviews: number;
+  tier: string;
+  initials: string;
 };
 
-const services = [
-  { id: "bridal", name: "Bridal glam package", duration: "3 hrs", price: 65000 },
-  { id: "party", name: "Party makeup", duration: "1.5 hrs", price: 25000 },
-  { id: "hair", name: "Hair styling only", duration: "1 hr", price: 15000 },
-  { id: "trial", name: "Trial session", duration: "1 hr", price: 12000 },
-];
+type ServiceOption = { id: string; name: string; duration: string; price: number };
 
 const timeSlots = [
   "08:00", "09:00", "10:00", "11:00",
@@ -57,16 +58,76 @@ const timeSlots = [
 const steps = ["Service", "Date & time", "Details", "Review"] as const;
 
 function BookPage() {
+  const { providerId } = Route.useSearch();
+  const [loading, setLoading] = useState(true);
+  const [provider, setProvider] = useState<ProviderInfo | null>(null);
+  const [serviceOptions, setServiceOptions] = useState<ServiceOption[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      if (!providerId) {
+        setLoading(false);
+        return;
+      }
+      const [{ data: pp }, { data: svc }, { data: sessionData }] = await Promise.all([
+        supabase
+          .from("provider_profiles")
+          .select("id, business_name, area, rating, review_count, tier, categories(name)")
+          .eq("id", providerId)
+          .eq("published", true)
+          .maybeSingle(),
+        supabase
+          .from("services")
+          .select("id, title, duration, price")
+          .eq("provider_id", providerId)
+          .eq("active", true)
+          .order("created_at"),
+        supabase.auth.getSession(),
+      ]);
+      if (!active) return;
+      setUserId(sessionData.session?.user?.id ?? null);
+      if (pp) {
+        setProvider({
+          id: pp.id,
+          name: pp.business_name,
+          craft: pp.categories?.name ?? "Service provider",
+          area: pp.area,
+          rating: pp.rating,
+          reviews: pp.review_count,
+          tier: pp.tier,
+          initials: pp.business_name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?",
+        });
+      }
+      setServiceOptions((svc ?? []).map((s) => ({ id: s.id, name: s.title, duration: s.duration ?? "—", price: Number(s.price) })));
+      setLoading(false);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, [providerId]);
+
   const [step, setStep] = useState(0);
-  const [serviceId, setServiceId] = useState(services[0].id);
+  const [serviceId, setServiceId] = useState("");
   const [date, setDate] = useState<string>("");
   const [time, setTime] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [photos, setPhotos] = useState<{ name: string; url: string }[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const service = useMemo(() => services.find((s) => s.id === serviceId)!, [serviceId]);
-  const total = service.price;
+  useEffect(() => {
+    if (!serviceId && serviceOptions.length > 0) setServiceId(serviceOptions[0].id);
+  }, [serviceOptions, serviceId]);
+
+  const service = useMemo(
+    () => serviceOptions.find((s) => s.id === serviceId) ?? serviceOptions[0],
+    [serviceId, serviceOptions]
+  );
+  const total = service?.price ?? 0;
   const escrowFee = Math.round(total * 0.03);
   const grand = total + escrowFee;
 
@@ -83,6 +144,34 @@ function BookPage() {
     if (step > 0) setStep((s) => s - 1);
   }
 
+  async function submitBooking() {
+    if (!provider || !service) return;
+    if (!userId) {
+      setSubmitError("Sign in to send a booking request.");
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    const scheduledAt = date && time ? new Date(`${date}T${time}:00`).toISOString() : null;
+    const { error } = await supabase.from("bookings").insert({
+      provider_id: provider.id,
+      customer_id: userId,
+      service_id: service.id,
+      service_title: service.name,
+      amount: total,
+      scheduled_at: scheduledAt,
+      location: provider.area,
+      notes: notes || null,
+      status: "New",
+    });
+    setSubmitting(false);
+    if (error) {
+      setSubmitError(error.message);
+      return;
+    }
+    setSubmitted(true);
+  }
+
   function handleFiles(list: FileList | null) {
     if (!list) return;
     const next = Array.from(list).slice(0, 6 - photos.length).map((f) => ({
@@ -96,8 +185,45 @@ function BookPage() {
     setPhotos((p) => p.filter((_, i) => i !== idx));
   }
 
+  if (loading) {
+    return <div className="grid min-h-screen place-items-center text-sm text-muted-foreground">Loading…</div>;
+  }
+
+  if (!providerId || !provider) {
+    return (
+      <div className="min-h-screen bg-muted/30">
+        <TopBar />
+        <div className="mx-auto max-w-lg px-4 py-16 text-center sm:px-6">
+          <p className="font-semibold text-foreground">We couldn't find that pro.</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Pick a pro from search to start a booking.
+          </p>
+          <Link
+            to="/search"
+            search={{ q: "" }}
+            className="mt-5 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"
+          >
+            Browse pros <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (serviceOptions.length === 0) {
+    return (
+      <div className="min-h-screen bg-muted/30">
+        <TopBar />
+        <div className="mx-auto max-w-lg px-4 py-16 text-center sm:px-6">
+          <p className="font-semibold text-foreground">{provider.name} hasn't listed any services yet.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Check back soon, or message them directly.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (submitted) {
-    return <BookingSuccess service={service} date={date} time={time} total={grand} />;
+    return <BookingSuccess provider={provider} service={service!} date={date} time={time} total={grand} />;
   }
 
   return (
@@ -108,7 +234,7 @@ function BookPage() {
           <Stepper step={step} />
           <div className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-sm">
             {step === 0 && (
-              <ServiceStep serviceId={serviceId} onChange={setServiceId} />
+              <ServiceStep provider={provider} serviceOptions={serviceOptions} serviceId={serviceId} onChange={setServiceId} />
             )}
             {step === 1 && (
               <DateTimeStep
@@ -127,8 +253,9 @@ function BookPage() {
                 onRemove={removePhoto}
               />
             )}
-            {step === 3 && (
+            {step === 3 && service && (
               <ReviewStep
+                provider={provider}
                 service={service}
                 date={date}
                 time={time}
@@ -139,6 +266,8 @@ function BookPage() {
                 grand={grand}
               />
             )}
+
+            {submitError && <p className="mt-4 text-sm text-destructive">{submitError}</p>}
 
             <div className="mt-8 flex items-center justify-between border-t border-border pt-6">
               <button
@@ -158,10 +287,11 @@ function BookPage() {
                 </button>
               ) : (
                 <button
-                  onClick={() => setSubmitted(true)}
-                  className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90"
+                  onClick={submitBooking}
+                  disabled={submitting || !service}
+                  className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 disabled:opacity-50"
                 >
-                  Send booking request <Check className="h-4 w-4" />
+                  {submitting ? "Sending…" : <>Send booking request <Check className="h-4 w-4" /></>}
                 </button>
               )}
             </div>
@@ -169,14 +299,17 @@ function BookPage() {
         </main>
 
         <aside className="lg:sticky lg:top-24 lg:h-fit">
-          <SummaryCard
-            service={service}
-            date={date}
-            time={time}
-            total={total}
-            escrowFee={escrowFee}
-            grand={grand}
-          />
+          {service && (
+            <SummaryCard
+              provider={provider}
+              service={service}
+              date={date}
+              time={time}
+              total={total}
+              escrowFee={escrowFee}
+              grand={grand}
+            />
+          )}
         </aside>
       </div>
     </div>
@@ -187,9 +320,7 @@ function TopBar() {
   return (
     <div className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Back to Ọjà
-        </Link>
+        <BackNav label="Back to Ọjà" />
         <div className="hidden items-center gap-2 text-xs text-muted-foreground sm:flex">
           <ShieldCheck className="h-4 w-4 text-primary" />
           Escrow-protected · Cancel free up to 24h before
@@ -236,9 +367,13 @@ function Stepper({ step }: { step: number }) {
 }
 
 function ServiceStep({
+  provider,
+  serviceOptions,
   serviceId,
   onChange,
 }: {
+  provider: ProviderInfo;
+  serviceOptions: ServiceOption[];
   serviceId: string;
   onChange: (id: string) => void;
 }) {
@@ -249,7 +384,7 @@ function ServiceStep({
         Pick what you'd like {provider.name.split(" ")[0]} to do.
       </p>
       <div className="mt-5 grid gap-3">
-        {services.map((s) => {
+        {serviceOptions.map((s) => {
           const selected = s.id === serviceId;
           return (
             <label
@@ -405,6 +540,7 @@ function DetailsStep({
 }
 
 function ReviewStep({
+  provider,
   service,
   date,
   time,
@@ -414,7 +550,8 @@ function ReviewStep({
   escrowFee,
   grand,
 }: {
-  service: (typeof services)[number];
+  provider: ProviderInfo;
+  service: ServiceOption;
   date: string;
   time: string;
   notes: string;
@@ -470,6 +607,7 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 function SummaryCard({
+  provider,
   service,
   date,
   time,
@@ -477,7 +615,8 @@ function SummaryCard({
   escrowFee,
   grand,
 }: {
-  service: (typeof services)[number];
+  provider: ProviderInfo;
+  service: ServiceOption;
   date: string;
   time: string;
   total: number;
@@ -549,12 +688,14 @@ function SummaryCard({
 }
 
 function BookingSuccess({
+  provider,
   service,
   date,
   time,
   total,
 }: {
-  service: (typeof services)[number];
+  provider: ProviderInfo;
+  service: ServiceOption;
   date: string;
   time: string;
   total: number;
