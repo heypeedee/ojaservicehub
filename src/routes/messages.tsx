@@ -373,6 +373,58 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
   );
 }
 
+function ProfileSetupBanner({ userId, onDone }: { userId: string; onDone: () => void }) {
+  const [username, setUsername] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [shopName, setShopName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const ok = /^[a-zA-Z][a-zA-Z0-9_]{2,23}$/.test(username);
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    if (!ok) { setErr("Username must be 3–24 chars, letters/numbers/underscore, start with a letter."); return; }
+    if (!fullName.trim()) { setErr("Please enter your full name."); return; }
+    setSaving(true);
+    const { data: taken } = await supabase
+      .from("profiles").select("id").ilike("username", username).neq("id", userId).limit(1);
+    if (taken && taken.length) { setErr("That username is taken."); setSaving(false); return; }
+    const { error } = await supabase.from("profiles").update({
+      username,
+      full_name: fullName.trim(),
+      display_name: fullName.trim(),
+      shop_name: shopName.trim() || null,
+    }).eq("id", userId);
+    setSaving(false);
+    if (error) { setErr(error.message); return; }
+    onDone();
+  }
+
+  return (
+    <div className="mx-auto mt-4 max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="rounded-3xl border border-brand/30 bg-brand-soft p-5 shadow-sm">
+        <p className="text-sm font-semibold text-brand">Claim your public @username</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Your username is how others find you in reviews, chats, bookings and offers. Pick something you'll keep — you can also add a shop name if you sell services.
+        </p>
+        <form onSubmit={save} className="mt-4 grid gap-2 md:grid-cols-4">
+          <div className="flex items-stretch overflow-hidden rounded-2xl border border-border bg-background focus-within:border-primary md:col-span-1">
+            <span className="grid place-items-center border-r border-border bg-muted/60 px-3 text-sm font-semibold text-muted-foreground">@</span>
+            <input value={username} onChange={(e) => setUsername(e.target.value.replace(/\s+/g, ""))} placeholder="username" className="w-full bg-transparent px-3 py-2.5 text-sm outline-none" />
+          </div>
+          <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full name" className="rounded-2xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary md:col-span-1" />
+          <input value={shopName} onChange={(e) => setShopName(e.target.value)} placeholder="Shop name (optional)" className="rounded-2xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary md:col-span-1" />
+          <button type="submit" disabled={saving} className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60 md:col-span-1">
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}Save identity
+          </button>
+        </form>
+        {err && <p className="mt-2 rounded-xl bg-destructive/10 px-3 py-2 text-xs text-destructive">{err}</p>}
+      </div>
+    </div>
+  );
+}
+
 function ConvoList({
   me,
   conversations,
