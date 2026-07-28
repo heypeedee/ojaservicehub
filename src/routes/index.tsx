@@ -289,7 +289,7 @@ function Categories() {
           <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Popular categories</h2>
           <p className="mt-3 text-muted-foreground">Hand-picked pros across the services people book most.</p>
         </div>
-        <Link to="/search" className="hidden text-sm font-medium text-primary hover:underline sm:inline-flex">
+        <Link to="/search" search={{ q: "" }} className="hidden text-sm font-medium text-primary hover:underline sm:inline-flex">
           Browse all →
         </Link>
       </div>
@@ -375,7 +375,7 @@ function Featured() {
             <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Featured professionals</h2>
             <p className="mt-3 text-muted-foreground">Top-rated, background-verified pros near you.</p>
           </div>
-          <Link to="/search" className="hidden text-sm font-medium text-primary hover:underline sm:inline-flex">
+          <Link to="/search" search={{ q: "" }} className="hidden text-sm font-medium text-primary hover:underline sm:inline-flex">
             View all →
           </Link>
         </div>
@@ -409,6 +409,7 @@ function Featured() {
               <Link
                 key={p.id}
                 to="/book"
+                search={{ providerId: p.id }}
                 className="group overflow-hidden rounded-3xl border border-border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_50px_-24px_oklch(0.24_0_240/0.25)]"
               >
                 <div className="relative h-52 overflow-hidden bg-muted">

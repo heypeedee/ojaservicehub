@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { OjaLogo } from "@/components/OjaLogo";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -49,77 +50,28 @@ type Order = {
   area: string;
   amount: number;
   status: OrderStatus;
-  image: string;
+  image?: string;
   rated?: boolean;
   tipped?: number;
 };
 
-const initialOrders: Order[] = [
-  {
-    id: "b1",
-    pro: "Adaeze Okoye",
-    craft: "Bridal Hair & Makeup",
-    when: "Sat 28 Nov · 9:00am",
-    area: "Lekki Phase 1",
-    amount: 45000,
-    status: "Confirmed",
-    image: "https://images.unsplash.com/photo-1595916996826-be9ad7f0aabc?auto=format&fit=crop&w=200&q=80",
-  },
-  {
-    id: "b2",
-    pro: "Chinedu Bala",
-    craft: "Electrical inspection",
-    when: "Tue 1 Dec · 4:30pm",
-    area: "Yaba",
-    amount: 12500,
-    status: "Awaiting pro",
-    image: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=200&q=80",
-  },
-  {
-    id: "r1",
-    pro: "Zainab Musa",
-    craft: "Aso-Oke blouse alterations",
-    when: "3 days ago",
-    area: "Surulere",
-    amount: 8500,
-    status: "Completed",
-    rated: true,
-    image: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=200&q=80",
-  },
-  {
-    id: "r2",
-    pro: "Kunle Adisa",
-    craft: "Private chef · 4 guests",
-    when: "1 week ago",
-    area: "Ikoyi",
-    amount: 22000,
-    status: "Completed",
-    rated: false,
-    image: "https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=200&q=80",
-  },
-  {
-    id: "r3",
-    pro: "Femi O.",
-    craft: "Deep clean 3-bedroom flat",
-    when: "2 weeks ago",
-    area: "Gbagada",
-    amount: 18000,
-    status: "Completed",
-    rated: true,
-    tipped: 2000,
-    image: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=200&q=80",
-  },
-  {
-    id: "r4",
-    pro: "Sade Bello",
-    craft: "Nail extensions",
-    when: "3 weeks ago",
-    area: "Lekki",
-    amount: 15000,
-    status: "Cancelled",
-    image: "https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=200&q=80",
-  },
-];
+type BookingRow = {
+  id: string;
+  service_title: string;
+  amount: number;
+  status: string;
+  scheduled_at: string | null;
+  location: string | null;
+  provider_id: string;
+  provider_profiles: { business_name: string; area: string; categories: { name: string } | null } | null;
+};
+
+function mapBookingStatus(s: string): OrderStatus {
+  if (s === "New") return "Awaiting pro";
+  if (s === "In progress") return "Confirmed";
+  if (s === "Confirmed" || s === "Completed" || s === "Cancelled") return s;
+  return "Awaiting pro";
+}
 
 const initialFavourites = [
   { id: "f1", name: "Adaeze Okoye", craft: "Bridal Hair", rating: 4.98, image: "https://images.unsplash.com/photo-1595916996826-be9ad7f0aabc?auto=format&fit=crop&w=200&q=80" },
@@ -133,12 +85,74 @@ const monthLabels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"]
 
 const formatNaira = (n: number) => `₦${n.toLocaleString("en-NG")}`;
 
+function OrderAvatar({ name, image, className }: { name: string; image?: string; className: string }) {
+  if (image) return <img src={image} alt="" className={`${className} object-cover`} />;
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
+  return (
+    <div className={`${className} grid shrink-0 place-items-center bg-brand-soft font-semibold text-brand`}>
+      {initials}
+    </div>
+  );
+}
+
 function BuyerDashboard() {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [favourites, setFavourites] = useState(initialFavourites);
   const [tipTarget, setTipTarget] = useState<Order | null>(null);
   const [reviewTarget, setReviewTarget] = useState<Order | null>(null);
   const [query, setQuery] = useState("");
+  const [userId, setUserId] = useState<string | null>(null);
+  const [firstName, setFirstName] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!active) return;
+      const uid = session?.user?.id ?? null;
+      setUserId(uid);
+      if (!uid) {
+        setLoading(false);
+        return;
+      }
+      const name =
+        (session?.user?.user_metadata?.display_name as string | undefined) ||
+        (session?.user?.user_metadata?.full_name as string | undefined) ||
+        "";
+      setFirstName(name.split(" ")[0] || "");
+
+      const { data: rows } = await supabase
+        .from("bookings")
+        .select(
+          "id, service_title, amount, status, scheduled_at, location, provider_id, provider_profiles(business_name, area, categories(name))"
+        )
+        .eq("customer_id", uid)
+        .order("created_at", { ascending: false });
+      if (!active) return;
+
+      setOrders(
+        ((rows as unknown as BookingRow[]) ?? []).map((b) => ({
+          id: b.id,
+          pro: b.provider_profiles?.business_name ?? "Provider",
+          craft: b.provider_profiles?.categories?.name ?? b.service_title,
+          when: b.scheduled_at
+            ? new Date(b.scheduled_at).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })
+            : "—",
+          area: b.location || b.provider_profiles?.area || "—",
+          amount: Number(b.amount),
+          status: mapBookingStatus(b.status),
+        }))
+      );
+      setLoading(false);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const upcoming = orders.filter((o) => o.status === "Confirmed" || o.status === "Awaiting pro");
   const completed = orders.filter((o) => o.status === "Completed");
@@ -158,11 +172,28 @@ function BuyerDashboard() {
     setFavourites((prev) => prev.filter((f) => f.id !== id));
   };
 
+  if (loading) {
+    return <div className="grid min-h-screen place-items-center text-sm text-muted-foreground">Loading your dashboard…</div>;
+  }
+
+  if (!userId) {
+    return (
+      <div className="grid min-h-screen place-items-center px-4 text-center">
+        <div>
+          <p className="font-semibold text-foreground">Sign in to view your dashboard.</p>
+          <Link to="/signup" className="mt-3 inline-flex items-center gap-1 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground">
+            Sign in / create account
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-muted/40">
       <TopBar query={query} setQuery={setQuery} />
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <Header />
+        <Header name={firstName} />
         <KpiRow
           bookings={orders.length}
           totalSpend={totalSpend}
@@ -236,6 +267,7 @@ function TopBar({ query, setQuery }: { query: string; setQuery: (v: string) => v
         </form>
         <Link
           to="/search"
+          search={{ q: "" }}
           className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-95 lg:hidden"
         >
           <Search className="h-4 w-4" /> Find
@@ -245,14 +277,14 @@ function TopBar({ query, setQuery }: { query: string; setQuery: (v: string) => v
   );
 }
 
-function Header() {
+function Header({ name }: { name: string }) {
   return (
     <header className="flex flex-wrap items-end justify-between gap-4">
       <div>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-[11px] font-semibold text-brand">
           <Sparkles className="h-3.5 w-3.5" /> Buyer dashboard
         </span>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Welcome back, Amaka.</h1>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Welcome back{name ? `, ${name}` : ""}.</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Discover pros, track every booking, reward great work, and rebook your favourites.
         </p>
@@ -265,7 +297,8 @@ function Header() {
           <Sparkles className="h-4 w-4 text-primary" /> Instant Match
         </Link>
         <Link
-          to="/book"
+          to="/search"
+          search={{ q: "" }}
           className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-sm font-semibold text-background transition hover:opacity-90"
         >
           Book a service <ArrowRight className="h-4 w-4" />
@@ -328,13 +361,13 @@ function UpcomingBookings({ items }: { items: Order[] }) {
           <h2 className="text-lg font-semibold">Upcoming bookings</h2>
           <p className="text-xs text-muted-foreground">Your next confirmed and pending jobs.</p>
         </div>
-        <Link to="/book" className="text-xs font-semibold text-primary hover:underline">
+        <Link to="/search" search={{ q: "" }} className="text-xs font-semibold text-primary hover:underline">
           Book another →
         </Link>
       </div>
       {items.length === 0 ? (
         <p className="mt-5 rounded-2xl bg-muted/50 p-6 text-center text-xs text-muted-foreground">
-          No upcoming bookings — <Link to="/search" className="text-primary underline">find a pro</Link>.
+          No upcoming bookings — <Link to="/search" search={{ q: "" }} className="text-primary underline">find a pro</Link>.
         </p>
       ) : (
         <ul className="mt-5 space-y-3">
@@ -343,7 +376,7 @@ function UpcomingBookings({ items }: { items: Order[] }) {
               key={b.id}
               className="flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-background p-4 transition hover:border-primary/40"
             >
-              <img src={b.image} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" />
+              <OrderAvatar name={b.pro} image={b.image} className="h-14 w-14 rounded-2xl" />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold text-foreground">{b.pro}</p>
@@ -482,7 +515,7 @@ function OrderHistory({
         )}
         {filtered.map((o) => (
           <li key={o.id} className="flex flex-wrap items-center gap-4 py-4">
-            <img src={o.image} alt="" className="h-12 w-12 shrink-0 rounded-2xl object-cover" />
+            <OrderAvatar name={o.pro} image={o.image} className="h-12 w-12 rounded-2xl" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold">{o.pro}</p>
@@ -634,7 +667,8 @@ function FavouritesCard({
               <Star className="h-3 w-3 fill-gold text-gold" /> {f.rating}
             </span>
             <Link
-              to="/book"
+              to="/search"
+              search={{ q: "" }}
               className="rounded-full bg-primary px-2.5 py-1 text-[10px] font-semibold text-primary-foreground"
             >
               Book
@@ -697,7 +731,7 @@ function ReviewsFromYou({
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         {pending.map((o) => (
           <div key={o.id} className="flex items-center gap-3 rounded-2xl bg-background p-3">
-            <img src={o.image} alt="" className="h-10 w-10 rounded-2xl object-cover" />
+            <OrderAvatar name={o.pro} image={o.image} className="h-10 w-10 rounded-2xl" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{o.pro}</p>
               <p className="truncate text-[11px] text-muted-foreground">{o.craft}</p>

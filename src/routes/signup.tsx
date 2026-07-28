@@ -276,6 +276,7 @@ function SignupPage() {
             </button>
             <Link
               to="/search"
+              search={{ q: "" }}
               className="inline-flex items-center rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold hover:bg-muted"
             >
               Browse pros

@@ -239,7 +239,8 @@ function TrustProfile() {
                 Escrow-protected. Cancel free up to 24h before.
               </p>
               <Link
-                to="/book"
+                to="/search"
+                search={{ q: "" }}
                 className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"
               >
                 Book Adaeze

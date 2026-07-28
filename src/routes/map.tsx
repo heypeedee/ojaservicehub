@@ -331,7 +331,7 @@ function MapPage() {
             <OjaLogo size={32} />
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
-            <Link to="/search" className="hover:text-foreground">Search</Link>
+            <Link to="/search" search={{ q: "" }} className="hover:text-foreground">Search</Link>
             <Link to="/map" className="text-foreground">Map</Link>
             <Link to="/dashboard" className="hover:text-foreground">Dashboard</Link>
           </nav>

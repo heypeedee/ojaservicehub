@@ -170,7 +170,7 @@ function OffersPage() {
             <OjaLogo size={32} />
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
-            <Link to="/search" className="hover:text-foreground">Search</Link>
+            <Link to="/search" search={{ q: "" }} className="hover:text-foreground">Search</Link>
             <Link to="/instant-match" className="hover:text-foreground">Instant Match</Link>
             <Link to="/offers" className="text-foreground">Offers</Link>
             <Link to="/messages" className="hover:text-foreground">Messages</Link>
