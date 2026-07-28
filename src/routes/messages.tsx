@@ -614,7 +614,7 @@ function ChatPane({
               >
                 {!mine && (
                   <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {sender?.display_name ?? "Someone"}
+                    {nameWithShop(sender)}
                   </p>
                 )}
                 {m.image_url && (
