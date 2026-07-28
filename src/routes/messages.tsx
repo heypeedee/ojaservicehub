@@ -50,6 +50,17 @@ type ChatMessage = {
   created_at: string;
 };
 
+function nameFor(p: Profile | null | undefined): string {
+  if (!p) return "Someone";
+  return p.username ? `@${p.username}` : p.display_name ?? "Ọjà member";
+}
+
+function nameWithShop(p: Profile | null | undefined): string {
+  if (!p) return "Someone";
+  const primary = nameFor(p);
+  return p.shop_name ? `${primary} · ${p.shop_name}` : primary;
+}
+
 function MessagesPage() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
 
