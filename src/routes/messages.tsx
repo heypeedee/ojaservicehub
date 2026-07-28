@@ -262,7 +262,7 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
       const userIds = Array.from(new Set((parts ?? []).map((p: any) => p.user_id)));
       const { data: profs } = await supabase
         .from("profiles")
-        .select("id, display_name, avatar_url")
+        .select("id, display_name, avatar_url, username, full_name, shop_name")
         .in("id", userIds);
       const profileMap = new Map<string, Profile>((profs ?? []).map((p: any) => [p.id, p]));
       const grouped: Record<string, Profile[]> = {};
