@@ -785,10 +785,15 @@ function NewChatDialog({
                 className="flex w-full items-center gap-3 rounded-2xl border border-border bg-background p-2.5 text-left hover:border-primary/40 disabled:opacity-60"
               >
                 <div className="grid h-10 w-10 place-items-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                  {(p.display_name ?? "?").slice(0, 1).toUpperCase()}
+                  {(p.username ?? p.display_name ?? "?").slice(0, 1).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">{p.display_name ?? "Ọjà member"}</p>
+                  <p className="truncate text-sm font-semibold">{nameFor(p)}</p>
+                  {(p.shop_name || p.display_name) && (
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {p.shop_name ?? p.display_name}
+                    </p>
+                  )}
                 </div>
                 {creating && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
               </button>
