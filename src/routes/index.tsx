@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   Search,
@@ -79,34 +79,6 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-const recentJobs = [
-  { pro: "Tolu A.", job: "Repaired inverter & rewired sockets", area: "Surulere", when: "2h ago" },
-  { pro: "Grace N.", job: "Bridal makeover for 4 guests", area: "Ajah", when: "5h ago" },
-  { pro: "Femi O.", job: "Deep clean 3-bedroom apartment", area: "Ikoyi", when: "Yesterday" },
-  { pro: "Ibrahim S.", job: "AC servicing (2 units)", area: "Magodo", when: "Yesterday" },
-];
-
-const testimonials = [
-  {
-    quote:
-      "I described what I needed and got matched with three verified pros in under a minute. Booked, paid, done.",
-    name: "Amaka E.",
-    role: "Marketing Lead, Lagos",
-  },
-  {
-    quote:
-      "The escrow gave me real peace of mind. My electrician was professional and the money only released after the job.",
-    name: "David O.",
-    role: "Homeowner, Abuja",
-  },
-  {
-    quote:
-      "As a stylist, Ọjà tripled my bookings in three months. The dashboard tells me exactly where to improve.",
-    name: "Bola A.",
-    role: "Provider · Gold tier",
-  },
-];
-
 function Home() {
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -115,8 +87,6 @@ function Home() {
       <Categories />
       <Featured />
       <RecentJobs />
-      <Testimonials />
-      <DownloadApp />
       <Footer />
     </div>
   );
@@ -147,7 +117,7 @@ function Header() {
             to="/signup"
             className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-95 hover:shadow-md"
           >
-            Join as a pro
+            Join Ọjà
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
@@ -157,6 +127,24 @@ function Header() {
 }
 
 function Hero() {
+  const navigate = useNavigate();
+  const [providerCount, setProviderCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const { count } = await supabase
+        .from("provider_profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("published", true);
+      if (active) setProviderCount(count ?? 0);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <section className="relative overflow-hidden">
       <div
@@ -189,7 +177,7 @@ function Hero() {
               const q = String(fd.get("q") ?? "").trim();
               const where = String(fd.get("where") ?? "").trim();
               const full = [q, where && `near ${where}`].filter(Boolean).join(" ");
-              window.location.href = `/search?q=${encodeURIComponent(full)}`;
+              navigate({ to: "/search", search: { q: full } });
             }}
           >
             <div className="flex flex-1 items-center gap-3 rounded-2xl px-4 py-3">
@@ -239,9 +227,9 @@ function Hero() {
 
           <dl className="mx-auto mt-14 grid max-w-2xl grid-cols-3 gap-4 text-left">
             {[
-              { k: "12k+", v: "Verified pros" },
-              { k: "98%", v: "Job satisfaction" },
-              { k: "< 60s", v: "Instant Match" },
+              { k: providerCount === null ? "—" : `${providerCount}`, v: providerCount === 1 ? "Pro on Ọjà" : "Pros on Ọjà" },
+              { k: "8", v: "Service categories" },
+              { k: "Lagos", v: "Where we're live" },
             ].map((s) => (
               <div key={s.v} className="rounded-2xl border border-border bg-card/80 p-5 text-center backdrop-blur-sm">
                 <dt className="text-2xl font-semibold text-foreground sm:text-3xl">{s.k}</dt>
@@ -465,7 +453,36 @@ function Featured() {
   );
 }
 
+type RecentJobRow = {
+  id: string;
+  service_title: string;
+  updated_at: string;
+  provider_profiles: { business_name: string; area: string } | null;
+};
+
 function RecentJobs() {
+  const [jobs, setJobs] = useState<RecentJobRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const { data } = await supabase
+        .from("bookings")
+        .select("id, service_title, updated_at, provider_profiles(business_name, area)")
+        .eq("status", "Completed")
+        .order("updated_at", { ascending: false })
+        .limit(4);
+      if (!active) return;
+      setJobs((data as unknown as RecentJobRow[]) ?? []);
+      setLoading(false);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <section id="how" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
       <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
@@ -475,20 +492,32 @@ function RecentJobs() {
             Real work, verified bookings. Every job on Ọjà is protected by escrow and eligible for review.
           </p>
           <ul className="mt-8 divide-y divide-border overflow-hidden rounded-3xl border border-border bg-card">
-            {recentJobs.map((j) => (
-              <li key={j.pro + j.job} className="flex items-center gap-4 p-5 transition-colors hover:bg-muted/40">
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-brand-soft text-primary">
-                  <CheckCircle2 className="h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">{j.job}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {j.pro} · {j.area}
-                  </p>
-                </div>
-                <span className="shrink-0 text-xs text-muted-foreground">{j.when}</span>
+            {loading &&
+              Array.from({ length: 3 }).map((_, i) => (
+                <li key={i} className="h-[68px] animate-pulse bg-muted/30" />
+              ))}
+            {!loading && jobs.length === 0 && (
+              <li className="p-6 text-center text-sm text-muted-foreground">
+                No completed jobs yet — this feed fills up as real bookings wrap up.
               </li>
-            ))}
+            )}
+            {!loading &&
+              jobs.map((j) => (
+                <li key={j.id} className="flex items-center gap-4 p-5 transition-colors hover:bg-muted/40">
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-brand-soft text-primary">
+                    <CheckCircle2 className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">{j.service_title}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {j.provider_profiles?.business_name ?? "A pro"} · {j.provider_profiles?.area ?? ""}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {new Date(j.updated_at).toLocaleDateString("en-NG", { month: "short", day: "numeric" })}
+                  </span>
+                </li>
+              ))}
           </ul>
         </div>
         <div className="relative overflow-hidden rounded-[2rem] border border-primary/20 bg-gradient-to-br from-primary via-primary to-[oklch(0.36_0.11_155)] p-10 text-primary-foreground shadow-[0_30px_80px_-40px_oklch(0.46_0.13_155/0.6)]">
@@ -526,129 +555,26 @@ function RecentJobs() {
   );
 }
 
-function Testimonials() {
-  return (
-    <section className="bg-muted/50 py-20">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Loved by customers and pros</h2>
-          <p className="mt-3 text-muted-foreground">
-            A trusted marketplace built on verified identities and honest reviews.
-          </p>
-        </div>
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
-          {testimonials.map((t) => (
-            <figure
-              key={t.name}
-              className="flex flex-col justify-between rounded-3xl border border-border bg-card p-7 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-            >
-              <Quote className="h-7 w-7 text-primary/70" />
-              <blockquote className="mt-5 text-[15px] leading-relaxed text-foreground">
-                "{t.quote}"
-              </blockquote>
-              <figcaption className="mt-7 flex items-center gap-3 border-t border-border pt-5">
-                <div className="grid h-10 w-10 place-items-center rounded-full bg-brand-soft text-sm font-semibold text-primary">
-                  {t.name[0]}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-foreground">{t.name}</p>
-                  <p className="text-xs text-muted-foreground">{t.role}</p>
-                </div>
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function DownloadApp() {
-  return (
-    <section id="app" className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
-      <div className="relative overflow-hidden rounded-[2rem] border border-border bg-card p-8 sm:p-14">
-        <div
-          aria-hidden
-          className="absolute inset-0 -z-10 opacity-80"
-          style={{
-            background:
-              "radial-gradient(50% 60% at 82% 25%, oklch(0.94 0.12 82 / 0.55), transparent 60%), radial-gradient(50% 60% at 8% 82%, oklch(0.92 0.1 155 / 0.55), transparent 60%)",
-          }}
-        />
-        <div className="grid items-center gap-12 lg:grid-cols-2">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Get the app</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
-              Ọjà in your pocket.
-            </h2>
-            <p className="mt-4 max-w-md text-muted-foreground">
-              Book, chat, pay and track jobs on the go. Get instant push updates the moment a pro
-              accepts your booking.
-            </p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <a
-                href="#"
-                className="inline-flex items-center gap-3 rounded-2xl bg-foreground px-5 py-3.5 text-background transition hover:opacity-90"
-              >
-                <Apple className="h-6 w-6" />
-                <div className="text-left leading-tight">
-                  <p className="text-[10px] opacity-70">Download on the</p>
-                  <p className="text-sm font-semibold">App Store</p>
-                </div>
-              </a>
-              <a
-                href="#"
-                className="inline-flex items-center gap-3 rounded-2xl bg-foreground px-5 py-3.5 text-background transition hover:opacity-90"
-              >
-                <Smartphone className="h-6 w-6" />
-                <div className="text-left leading-tight">
-                  <p className="text-[10px] opacity-70">Get it on</p>
-                  <p className="text-sm font-semibold">Google Play</p>
-                </div>
-              </a>
-            </div>
-          </div>
-          <div className="relative mx-auto flex w-full max-w-sm justify-center">
-            <div className="relative h-[440px] w-[230px] rounded-[2.75rem] border-[10px] border-foreground bg-background shadow-2xl">
-              <div className="absolute left-1/2 top-2 h-1.5 w-16 -translate-x-1/2 rounded-full bg-foreground/60" />
-              <div className="flex h-full flex-col gap-3 p-4 pt-9">
-                <div className="rounded-2xl bg-primary p-3.5 text-primary-foreground">
-                  <p className="text-[10px] opacity-80">Instant Match</p>
-                  <p className="text-sm font-semibold">3 pros found nearby</p>
-                </div>
-                {/* Decorative phone-mockup illustration only — not live data */}
-                {[
-                  { initials: "AO", area: "Lekki Phase 1" },
-                  { initials: "CB", area: "Yaba" },
-                  { initials: "KA", area: "Victoria Island" },
-                ].map((p) => (
-                  <div
-                    key={p.initials}
-                    className="flex items-center gap-2 rounded-2xl border border-border p-2"
-                  >
-                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
-                      {p.initials}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[11px] font-semibold">Matched nearby</p>
-                      <p className="truncate text-[10px] text-muted-foreground">{p.area}</p>
-                    </div>
-                    <div className="flex items-center gap-0.5 text-[10px] font-semibold">
-                      <Star className="h-3 w-3 fill-gold text-gold" />
-                      4.9
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function Footer() {
+  const columns: { title: string; links: { label: string; to: string; hash?: boolean }[] }[] = [
+    {
+      title: "Customers",
+      links: [
+        { label: "How it works", to: "#how", hash: true },
+        { label: "Instant Match", to: "/instant-match" },
+        { label: "Search pros", to: "/search" },
+      ],
+    },
+    {
+      title: "Professionals",
+      links: [
+        { label: "Join as a pro", to: "/signup" },
+        { label: "Pricing & plans", to: "/plans" },
+        { label: "HubPoints wallet", to: "/wallet" },
+      ],
+    },
+  ];
+
   return (
     <footer className="border-t border-border bg-card">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-5 lg:px-8">
@@ -657,25 +583,29 @@ function Footer() {
             <OjaLogo size={36} />
           </Link>
           <p className="mt-5 max-w-sm text-sm text-muted-foreground">
-            Ọjà is the trusted marketplace for local African services. Verified pros, escrow
-            payments, honest reviews — calm by design.
+            Ọjà is a marketplace for local African services, built in Lagos. Escrow-protected
+            payments and verified pro profiles, still early — help us shape it.
           </p>
         </div>
-        {[
-          { title: "Customers", links: ["How it works", "Instant Match", "Safety & escrow", "Support"] },
-          { title: "Professionals", links: ["Join as a pro", "Pricing & plans", "HubPoints wallet", "Success stories"] },
-          { title: "Company", links: ["About", "Careers", "Press", "Contact"] },
-        ].map((col) => (
+        {columns.map((col) => (
           <div key={col.title}>
             <p className="text-sm font-semibold text-foreground">{col.title}</p>
             <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-              {col.links.map((l) => (
-                <li key={l}>
-                  <a href="#" className="transition-colors hover:text-foreground">
-                    {l}
-                  </a>
-                </li>
-              ))}
+              {col.links.map((l) =>
+                l.hash ? (
+                  <li key={l.label}>
+                    <a href={l.to} className="transition-colors hover:text-foreground">
+                      {l.label}
+                    </a>
+                  </li>
+                ) : (
+                  <li key={l.label}>
+                    <Link to={l.to} search={l.to === "/search" ? { q: "" } : undefined} className="transition-colors hover:text-foreground">
+                      {l.label}
+                    </Link>
+                  </li>
+                )
+              )}
             </ul>
           </div>
         ))}
@@ -683,11 +613,6 @@ function Footer() {
       <div className="border-t border-border">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-6 text-xs text-muted-foreground sm:flex-row sm:px-6 lg:px-8">
           <p>© {new Date().getFullYear()} Ọjà. Built with care in Lagos.</p>
-          <div className="flex gap-4">
-            <a href="#" className="hover:text-foreground">Terms</a>
-            <a href="#" className="hover:text-foreground">Privacy</a>
-            <a href="#" className="hover:text-foreground">Cookies</a>
-          </div>
         </div>
       </div>
     </footer>
