@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import {
   Search,
   MapPin,
@@ -17,8 +18,44 @@ import {
   Smartphone,
   ArrowRight,
   Quote,
+  type LucideIcon,
 } from "lucide-react";
 import { OjaLogo } from "@/components/OjaLogo";
+import { supabase } from "@/integrations/supabase/client";
+
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  Scissors,
+  Wrench,
+  Sparkles,
+  Zap,
+  Camera,
+  ChefHat,
+  Paintbrush,
+  Car,
+};
+
+const CATEGORY_TINTS = [
+  "bg-brand-soft text-brand",
+  "bg-orange/10 text-orange",
+  "bg-brand-soft text-brand",
+  "bg-gold/15 text-charcoal",
+];
+
+type CategoryRow = { id: string; slug: string; name: string; icon: string };
+
+type ProviderRow = {
+  id: string;
+  business_name: string;
+  tagline: string | null;
+  area: string;
+  price_from: number;
+  tier: string;
+  rating: number;
+  review_count: number;
+  cover_image_url: string | null;
+  category_id: string | null;
+  categories: { name: string } | null;
+};
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -41,65 +78,6 @@ export const Route = createFileRoute("/")({
   }),
   component: Home,
 });
-
-const categories = [
-  { name: "Hair & Beauty", icon: Scissors, count: "2,340 pros", tint: "bg-brand-soft text-brand" },
-  { name: "Home Repair", icon: Wrench, count: "1,812 pros", tint: "bg-orange/10 text-orange" },
-  { name: "Cleaning", icon: Sparkles, count: "980 pros", tint: "bg-brand-soft text-brand" },
-  { name: "Electrical", icon: Zap, count: "674 pros", tint: "bg-gold/15 text-charcoal" },
-  { name: "Photography", icon: Camera, count: "512 pros", tint: "bg-brand-soft text-brand" },
-  { name: "Private Chef", icon: ChefHat, count: "301 pros", tint: "bg-orange/10 text-orange" },
-  { name: "Tailoring", icon: Paintbrush, count: "428 pros", tint: "bg-gold/15 text-charcoal" },
-  { name: "Auto Care", icon: Car, count: "236 pros", tint: "bg-brand-soft text-brand" },
-];
-
-// Authentic Nigerian/African professional imagery (Unsplash)
-const featured = [
-  {
-    name: "Adaeze Okoye",
-    craft: "Bridal Hair & Makeup",
-    area: "Lekki Phase 1",
-    rating: 4.98,
-    reviews: 214,
-    price: "from ₦45,000",
-    tier: "Platinum",
-    image:
-      "https://images.unsplash.com/photo-1595916996826-be9ad7f0aabc?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    name: "Chinedu Bala",
-    craft: "Certified Electrician",
-    area: "Yaba",
-    rating: 4.93,
-    reviews: 187,
-    price: "from ₦8,000",
-    tier: "Gold",
-    image:
-      "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    name: "Kunle Adisa",
-    craft: "Private Chef · Nigerian & Continental",
-    area: "Victoria Island",
-    rating: 4.89,
-    reviews: 96,
-    price: "from ₦25,000",
-    tier: "Gold",
-    image:
-      "https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    name: "Zainab Musa",
-    craft: "Tailor · Aso-Oke & Ready-to-Wear",
-    area: "Ikeja GRA",
-    rating: 4.96,
-    reviews: 342,
-    price: "from ₦15,000",
-    tier: "Platinum",
-    image:
-      "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=800&q=80",
-  },
-];
 
 const recentJobs = [
   { pro: "Tolu A.", job: "Repaired inverter & rewired sockets", area: "Surulere", when: "2h ago" },
@@ -278,6 +256,32 @@ function Hero() {
 }
 
 function Categories() {
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const [{ data: cats }, { data: providers }] = await Promise.all([
+        supabase.from("categories").select("id, slug, name, icon").order("sort_order"),
+        supabase.from("provider_profiles").select("category_id").eq("published", true),
+      ]);
+      if (!active) return;
+      setCategories(cats ?? []);
+      const tally: Record<string, number> = {};
+      for (const p of providers ?? []) {
+        if (p.category_id) tally[p.category_id] = (tally[p.category_id] ?? 0) + 1;
+      }
+      setCounts(tally);
+      setLoading(false);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <section id="categories" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
       <div className="flex items-end justify-between gap-4">
@@ -290,22 +294,35 @@ function Categories() {
         </Link>
       </div>
       <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3 md:gap-4 lg:grid-cols-4">
-        {categories.map(({ name, icon: Icon, count, tint }) => (
-          <Link
-            key={name}
-            to="/search"
-            search={{ q: name }}
-            className="group relative flex items-center gap-4 overflow-hidden rounded-2xl border border-border bg-card p-5 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_18px_40px_-24px_oklch(0.46_0.13_155/0.35)]"
-          >
-            <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl transition-transform group-hover:scale-105 ${tint}`}>
-              <Icon className="h-6 w-6" strokeWidth={1.75} />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate font-semibold text-foreground">{name}</p>
-              <p className="truncate text-xs text-muted-foreground">{count}</p>
-            </div>
-          </Link>
-        ))}
+        {loading &&
+          Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-[76px] animate-pulse rounded-2xl border border-border bg-card" />
+          ))}
+        {!loading &&
+          categories.map(({ id, slug, name, icon }, i) => {
+            const Icon = CATEGORY_ICONS[icon] ?? Sparkles;
+            const count = counts[id] ?? 0;
+            return (
+              <Link
+                key={slug}
+                to="/search"
+                search={{ q: name }}
+                className="group relative flex items-center gap-4 overflow-hidden rounded-2xl border border-border bg-card p-5 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_18px_40px_-24px_oklch(0.46_0.13_155/0.35)]"
+              >
+                <div
+                  className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl transition-transform group-hover:scale-105 ${CATEGORY_TINTS[i % CATEGORY_TINTS.length]}`}
+                >
+                  <Icon className="h-6 w-6" strokeWidth={1.75} />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-foreground">{name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {count} {count === 1 ? "pro" : "pros"}
+                  </p>
+                </div>
+              </Link>
+            );
+          })}
       </div>
     </section>
   );
@@ -326,6 +343,30 @@ function TierBadge({ tier }: { tier: string }) {
 }
 
 function Featured() {
+  const [providers, setProviders] = useState<ProviderRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const { data } = await supabase
+        .from("provider_profiles")
+        .select(
+          "id, business_name, tagline, area, price_from, tier, rating, review_count, cover_image_url, category_id, categories(name)"
+        )
+        .eq("published", true)
+        .order("rating", { ascending: false })
+        .limit(4);
+      if (!active) return;
+      setProviders((data as unknown as ProviderRow[]) ?? []);
+      setLoading(false);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <section id="featured" className="bg-muted/50 py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -338,50 +379,86 @@ function Featured() {
             View all →
           </Link>
         </div>
-        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {featured.map((p) => (
+
+        {loading && (
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-80 animate-pulse rounded-3xl border border-border bg-card" />
+            ))}
+          </div>
+        )}
+
+        {!loading && providers.length === 0 && (
+          <div className="mt-10 rounded-3xl border border-dashed border-border bg-card p-10 text-center">
+            <p className="font-semibold text-foreground">No pros have joined yet.</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Be the first professional on Ọjà — set up your storefront in minutes.
+            </p>
             <Link
-              key={p.name}
-              to="/book"
-              className="group overflow-hidden rounded-3xl border border-border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_50px_-24px_oklch(0.24_0_240/0.25)]"
+              to="/signup"
+              className="mt-5 inline-flex items-center gap-1 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"
             >
-              <div className="relative h-52 overflow-hidden">
-                <img
-                  src={p.image}
-                  alt={`${p.name}, ${p.craft}`}
-                  loading="lazy"
-                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-charcoal/40 to-transparent" />
-                <div className="absolute right-3 top-3">
-                  <TierBadge tier={p.tier} />
-                </div>
-              </div>
-              <div className="p-5">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold text-foreground">{p.name}</p>
-                    <p className="truncate text-sm text-muted-foreground">{p.craft}</p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1 rounded-full bg-brand-soft px-2.5 py-1 text-xs font-semibold text-brand">
-                    <Star className="h-3.5 w-3.5 fill-gold text-gold" />
-                    {p.rating}
-                  </div>
-                </div>
-                <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5" /> {p.area}
-                  </span>
-                  <span>{p.reviews} reviews</span>
-                </div>
-                <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
-                  <span className="text-sm font-semibold text-foreground">{p.price}</span>
-                  <span className="text-xs font-semibold text-primary transition-transform group-hover:translate-x-0.5">Book now →</span>
-                </div>
-              </div>
+              Join as a pro <ArrowRight className="h-4 w-4" />
             </Link>
-          ))}
-        </div>
+          </div>
+        )}
+
+        {!loading && providers.length > 0 && (
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {providers.map((p) => (
+              <Link
+                key={p.id}
+                to="/book"
+                className="group overflow-hidden rounded-3xl border border-border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_24px_50px_-24px_oklch(0.24_0_240/0.25)]"
+              >
+                <div className="relative h-52 overflow-hidden bg-muted">
+                  {p.cover_image_url ? (
+                    <img
+                      src={p.cover_image_url}
+                      alt={`${p.business_name}, ${p.categories?.name ?? ""}`}
+                      loading="lazy"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                    />
+                  ) : (
+                    <div className="grid h-full w-full place-items-center text-4xl font-semibold text-muted-foreground">
+                      {p.business_name.slice(0, 1)}
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-charcoal/40 to-transparent" />
+                  <div className="absolute right-3 top-3">
+                    <TierBadge tier={p.tier} />
+                  </div>
+                </div>
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-foreground">{p.business_name}</p>
+                      <p className="truncate text-sm text-muted-foreground">{p.categories?.name ?? p.tagline}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1 rounded-full bg-brand-soft px-2.5 py-1 text-xs font-semibold text-brand">
+                      <Star className="h-3.5 w-3.5 fill-gold text-gold" />
+                      {p.rating > 0 ? p.rating.toFixed(2) : "New"}
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <MapPin className="h-3.5 w-3.5" /> {p.area}
+                    </span>
+                    <span>{p.review_count} reviews</span>
+                  </div>
+                  <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+                    <span className="text-sm font-semibold text-foreground">
+                      from ₦{Number(p.price_from).toLocaleString()}
+                    </span>
+                    <span className="text-xs font-semibold text-primary transition-transform group-hover:translate-x-0.5">
+                      Book now →
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -538,23 +615,26 @@ function DownloadApp() {
                   <p className="text-[10px] opacity-80">Instant Match</p>
                   <p className="text-sm font-semibold">3 pros found nearby</p>
                 </div>
-                {featured.slice(0, 3).map((p) => (
+                {/* Decorative phone-mockup illustration only — not live data */}
+                {[
+                  { initials: "AO", area: "Lekki Phase 1" },
+                  { initials: "CB", area: "Yaba" },
+                  { initials: "KA", area: "Victoria Island" },
+                ].map((p) => (
                   <div
-                    key={p.name}
+                    key={p.initials}
                     className="flex items-center gap-2 rounded-2xl border border-border p-2"
                   >
-                    <img
-                      src={p.image}
-                      alt=""
-                      className="h-9 w-9 shrink-0 rounded-full object-cover"
-                    />
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+                      {p.initials}
+                    </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[11px] font-semibold">{p.name}</p>
+                      <p className="truncate text-[11px] font-semibold">Matched nearby</p>
                       <p className="truncate text-[10px] text-muted-foreground">{p.area}</p>
                     </div>
                     <div className="flex items-center gap-0.5 text-[10px] font-semibold">
                       <Star className="h-3 w-3 fill-gold text-gold" />
-                      {p.rating}
+                      4.9
                     </div>
                   </div>
                 ))}

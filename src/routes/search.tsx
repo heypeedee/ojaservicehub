@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -49,25 +50,82 @@ type Provider = {
   tier: "Bronze" | "Silver" | "Gold" | "Platinum" | "Elite";
 };
 
-const categories = ["Hair & Beauty", "Chefs", "Cleaning", "Electrical", "Plumbing", "DJs & Events", "Tutoring", "Fitness"];
 const areas = ["Any area", "Lekki", "Victoria Island", "Ikoyi", "Yaba", "Surulere", "Ikeja", "Ajah"];
 
-const providers: Provider[] = [
-  { id: "p1", name: "Adaeze Okoye", initials: "AO", category: "Hair & Beauty", area: "Lekki", distanceKm: 2.1, rating: 4.98, reviews: 214, priceFrom: 65000, availableToday: true, openNow: true, verified: true, tier: "Platinum" },
-  { id: "p2", name: "Chef Ifeanyi", initials: "CI", category: "Chefs", area: "Victoria Island", distanceKm: 3.8, rating: 4.9, reviews: 128, priceFrom: 40000, availableToday: false, openNow: false, verified: true, tier: "Gold" },
-  { id: "p3", name: "Michael O.", initials: "MO", category: "Hair & Beauty", area: "Yaba", distanceKm: 1.2, rating: 4.85, reviews: 302, priceFrom: 4000, availableToday: true, openNow: true, verified: true, tier: "Elite" },
-  { id: "p4", name: "Bola Electric", initials: "BE", category: "Electrical", area: "Surulere", distanceKm: 5.4, rating: 4.8, reviews: 187, priceFrom: 8000, availableToday: true, openNow: false, verified: true, tier: "Gold" },
-  { id: "p5", name: "Sparkle Cleaners", initials: "SC", category: "Cleaning", area: "Ikoyi", distanceKm: 4.2, rating: 4.76, reviews: 411, priceFrom: 22000, availableToday: true, openNow: true, verified: true, tier: "Platinum" },
-  { id: "p6", name: "Femi Tunes", initials: "FT", category: "DJs & Events", area: "Lekki", distanceKm: 3.1, rating: 4.72, reviews: 96, priceFrom: 90000, availableToday: false, openNow: false, verified: false, tier: "Gold" },
-  { id: "p7", name: "Chef Amara", initials: "CA", category: "Chefs", area: "Lekki", distanceKm: 2.6, rating: 4.82, reviews: 74, priceFrom: 35000, availableToday: true, openNow: true, verified: true, tier: "Silver" },
-  { id: "p8", name: "PipeFix NG", initials: "PF", category: "Plumbing", area: "Ajah", distanceKm: 8.6, rating: 4.6, reviews: 143, priceFrom: 6500, availableToday: true, openNow: true, verified: true, tier: "Gold" },
-  { id: "p9", name: "Tutor Lara", initials: "TL", category: "Tutoring", area: "Ikeja", distanceKm: 11.4, rating: 4.95, reviews: 58, priceFrom: 12000, availableToday: false, openNow: false, verified: true, tier: "Silver" },
-  { id: "p10", name: "FitWith Tobi", initials: "FT", category: "Fitness", area: "Victoria Island", distanceKm: 3.9, rating: 4.7, reviews: 89, priceFrom: 15000, availableToday: true, openNow: true, verified: false, tier: "Bronze" },
-];
+function initialsOf(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() ?? "")
+      .join("") || "?"
+  );
+}
+
+type ProviderQueryRow = {
+  id: string;
+  business_name: string;
+  area: string;
+  price_from: number;
+  tier: string;
+  rating: number;
+  review_count: number;
+  available_today: boolean;
+  open_now: boolean;
+  verified: boolean;
+  categories: { name: string } | null;
+};
+
+function useLiveProvidersAndCategories() {
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const [{ data: cats }, { data: rows }] = await Promise.all([
+        supabase.from("categories").select("name").order("sort_order"),
+        supabase
+          .from("provider_profiles")
+          .select(
+            "id, business_name, area, price_from, tier, rating, review_count, available_today, open_now, verified, categories(name)"
+          )
+          .eq("published", true),
+      ]);
+      if (!active) return;
+      setCategories((cats ?? []).map((c) => c.name));
+      const mapped: Provider[] = ((rows as unknown as ProviderQueryRow[]) ?? []).map((r) => ({
+        id: r.id,
+        name: r.business_name,
+        initials: initialsOf(r.business_name),
+        category: r.categories?.name ?? "Other",
+        area: r.area,
+        distanceKm: 0, // real distance requires geolocation, added in a later pass
+        rating: r.rating,
+        reviews: r.review_count,
+        priceFrom: Number(r.price_from),
+        availableToday: r.available_today,
+        openNow: r.open_now,
+        verified: r.verified,
+        tier: (r.tier as Provider["tier"]) ?? "Bronze",
+      }));
+      setProviders(mapped);
+      setLoading(false);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return { providers, categories, loading };
+}
 
 type Sort = "relevance" | "rating" | "price_asc" | "price_desc" | "distance";
 
-function parseNL(q: string) {
+function parseNL(q: string, categories: string[]) {
   const s = q.toLowerCase();
   const cat = categories.find((c) => s.includes(c.toLowerCase().split(" ")[0])) ?? null;
   const area = areas.slice(1).find((a) => s.includes(a.toLowerCase())) ?? null;
@@ -80,13 +138,13 @@ function parseNL(q: string) {
   const maxPrice = under ? Number(under[1].replace(/,/g, "")) * (under[2] === "k" ? 1000 : 1) : null;
   const map: Record<string, string> = {
     hairdresser: "Hair & Beauty", barber: "Hair & Beauty", makeup: "Hair & Beauty",
-    chef: "Chefs", cook: "Chefs",
+    chef: "Private Chef", cook: "Private Chef",
     clean: "Cleaning", cleaner: "Cleaning",
     electrician: "Electrical", electric: "Electrical",
-    plumber: "Plumbing", plumbing: "Plumbing",
-    dj: "DJs & Events", event: "DJs & Events",
-    tutor: "Tutoring", teacher: "Tutoring",
-    fitness: "Fitness", trainer: "Fitness",
+    tailor: "Tailoring", sew: "Tailoring",
+    photographer: "Photography", photo: "Photography",
+    mechanic: "Auto Care", auto: "Auto Care",
+    repair: "Home Repair", plumber: "Home Repair", plumbing: "Home Repair",
   };
   let category = cat;
   for (const k of Object.keys(map)) if (s.includes(k)) { category = map[k]; break; }
@@ -97,7 +155,8 @@ function SearchPage() {
   const initial = Route.useSearch();
   const navigate = Route.useNavigate();
   const [q, setQ] = useState(initial.q);
-  const nl = useMemo(() => parseNL(q), [q]);
+  const { providers, categories, loading: loadingProviders } = useLiveProvidersAndCategories();
+  const nl = useMemo(() => parseNL(q, categories), [q, categories]);
 
   const [category, setCategory] = useState<string>("Any");
   const [area, setArea] = useState<string>("Any area");
@@ -150,7 +209,7 @@ function SearchPage() {
       }
     });
     return scored.map((s) => s.p);
-  }, [q, effCategory, effArea, effVerified, effToday, effOpen, effMaxPrice, maxDistance, minRating, effSort]);
+  }, [providers, q, effCategory, effArea, effVerified, effToday, effOpen, effMaxPrice, maxDistance, minRating, effSort]);
 
   const activeChips: { label: string; onClear: () => void }[] = [];
   if (category !== "Any") activeChips.push({ label: category, onClear: () => setCategory("Any") });
@@ -294,7 +353,11 @@ function SearchPage() {
             </div>
 
             <ul className="mt-4 space-y-3">
-              {results.map((p) => (
+              {loadingProviders &&
+                Array.from({ length: 4 }).map((_, i) => (
+                  <li key={i} className="h-24 animate-pulse rounded-2xl border border-border bg-card" />
+                ))}
+              {!loadingProviders && results.map((p) => (
                 <li key={p.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
                   <div className="flex flex-wrap items-start gap-3">
                     <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 font-semibold text-primary">{p.initials}</div>
@@ -319,7 +382,16 @@ function SearchPage() {
                   </div>
                 </li>
               ))}
-              {results.length === 0 && (
+              {!loadingProviders && results.length === 0 && providers.length === 0 && (
+                <li className="rounded-2xl border border-dashed border-border bg-card p-10 text-center text-sm text-muted-foreground">
+                  No pros have joined Ọjà yet. Check back soon, or{" "}
+                  <Link to="/signup" className="font-semibold text-primary hover:underline">
+                    join as a pro
+                  </Link>
+                  .
+                </li>
+              )}
+              {!loadingProviders && results.length === 0 && providers.length > 0 && (
                 <li className="rounded-2xl border border-dashed border-border bg-card p-10 text-center text-sm text-muted-foreground">
                   No pros match these filters. Try loosening price, distance, or rating.
                 </li>
