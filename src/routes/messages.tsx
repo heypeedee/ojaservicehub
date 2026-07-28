@@ -337,6 +337,8 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
         </div>
       </header>
 
+      {me && !me.username && <ProfileSetupBanner userId={userId} onDone={refresh} />}
+
       <div className="mx-auto grid max-w-7xl gap-4 px-4 py-6 sm:px-6 lg:grid-cols-[320px_1fr] lg:px-8">
         <ConvoList
           me={me}
