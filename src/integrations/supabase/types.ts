@@ -132,6 +132,111 @@ export type Database = {
         }
         Relationships: []
       }
+      categories: {
+        Row: {
+          created_at: string
+          icon: string
+          id: string
+          name: string
+          slug: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          icon?: string
+          id?: string
+          name: string
+          slug: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          icon?: string
+          id?: string
+          name?: string
+          slug?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      provider_profiles: {
+        Row: {
+          area: string
+          available_today: boolean
+          business_name: string
+          category_id: string | null
+          cover_image_url: string | null
+          created_at: string
+          id: string
+          open_now: boolean
+          phone: string | null
+          price_from: number
+          published: boolean
+          rating: number
+          review_count: number
+          tagline: string | null
+          tier: string
+          updated_at: string
+          verified: boolean
+          whatsapp: string | null
+        }
+        Insert: {
+          area: string
+          available_today?: boolean
+          business_name: string
+          category_id?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          id: string
+          open_now?: boolean
+          phone?: string | null
+          price_from?: number
+          published?: boolean
+          rating?: number
+          review_count?: number
+          tagline?: string | null
+          tier?: string
+          updated_at?: string
+          verified?: boolean
+          whatsapp?: string | null
+        }
+        Update: {
+          area?: string
+          available_today?: boolean
+          business_name?: string
+          category_id?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          id?: string
+          open_now?: boolean
+          phone?: string | null
+          price_from?: number
+          published?: boolean
+          rating?: number
+          review_count?: number
+          tagline?: string | null
+          tier?: string
+          updated_at?: string
+          verified?: boolean
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_profiles_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_profiles_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -29,6 +29,7 @@ import {
   X,
 } from "lucide-react";
 import { OjaLogo } from "@/components/OjaLogo";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/pro/dashboard")({
   head: () => ({
@@ -435,66 +436,188 @@ function Overview({
 
 /* ---------- Profile ---------- */
 
+type CategoryOption = { id: string; name: string };
+
 function ProfilePanel() {
-  const [name, setName] = useState("Adaeze O. Bridal Beauty");
-  const [nickname, setNickname] = useState("adaeze-beauty");
-  const [tagline, setTagline] = useState("Luxury bridal hair & makeup, Lekki-based, on-location across Lagos.");
-  const [category, setCategory] = useState("Beauty & Wellness");
-  const [area, setArea] = useState("Lekki Phase 1");
-  const [phone, setPhone] = useState("+234 803 000 0000");
+  const [userId, setUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
+
+  const [name, setName] = useState("");
+  const [tagline, setTagline] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [area, setArea] = useState("");
+  const [phone, setPhone] = useState("");
+  const [priceFrom, setPriceFrom] = useState("");
+  const [published, setPublished] = useState(false);
+
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const { data: cats } = await supabase.from("categories").select("id, name").order("sort_order");
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!active) return;
+      setCategoryOptions(cats ?? []);
+      const uid = session?.user?.id ?? null;
+      setUserId(uid);
+
+      if (uid) {
+        const { data: existing } = await supabase
+          .from("provider_profiles")
+          .select("business_name, tagline, category_id, area, phone, price_from, published")
+          .eq("id", uid)
+          .maybeSingle();
+        if (!active) return;
+        if (existing) {
+          setName(existing.business_name ?? "");
+          setTagline(existing.tagline ?? "");
+          setCategoryId(existing.category_id ?? "");
+          setArea(existing.area ?? "");
+          setPhone(existing.phone ?? "");
+          setPriceFrom(existing.price_from ? String(existing.price_from) : "");
+          setPublished(existing.published);
+        } else if (cats && cats.length > 0) {
+          setCategoryId(cats[0].id);
+        }
+      }
+      setLoading(false);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function saveProfile(nextPublished?: boolean) {
+    if (!userId) {
+      setError("You need to be signed in to save a business profile.");
+      return;
+    }
+    if (!name.trim() || !area.trim() || !categoryId) {
+      setError("Shop name, category, and service area are required.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const { error: upsertError } = await supabase.from("provider_profiles").upsert({
+      id: userId,
+      business_name: name.trim(),
+      tagline: tagline.trim() || null,
+      category_id: categoryId,
+      area: area.trim(),
+      phone: phone.trim() || null,
+      price_from: priceFrom ? Number(priceFrom) : 0,
+      published: nextPublished ?? published,
+    });
+    setSaving(false);
+    if (upsertError) {
+      setError(upsertError.message);
+      return;
+    }
+    if (nextPublished !== undefined) setPublished(nextPublished);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <PanelHeader title="Business profile" desc="This is what buyers see on your public shop and search results." />
+        <div className="h-64 animate-pulse rounded-3xl border border-border bg-card" />
+      </div>
+    );
+  }
+
+  if (!userId) {
+    return (
+      <div className="space-y-6">
+        <PanelHeader title="Business profile" desc="This is what buyers see on your public shop and search results." />
+        <section className="rounded-3xl border border-dashed border-border bg-card p-8 text-center">
+          <p className="font-semibold text-foreground">Sign in to set up your shop</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            You need an Ọjà account before you can publish a business profile.
+          </p>
+          <Link
+            to="/signup"
+            className="mt-4 inline-flex items-center gap-1 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground"
+          >
+            Sign in / create account
+          </Link>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <PanelHeader title="Business profile" desc="This is what buyers see on your public shop and search results." />
       <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="grid h-16 w-16 place-items-center rounded-2xl bg-brand-soft text-brand text-xl font-bold">A</div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold">Change logo</p>
-            <p className="text-xs text-muted-foreground">PNG or JPG, square. 512×512 minimum.</p>
+          <div className="grid h-16 w-16 place-items-center rounded-2xl bg-brand-soft text-brand text-xl font-bold">
+            {name.trim().slice(0, 1).toUpperCase() || "?"}
           </div>
-          <button className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold">
-            Upload
-          </button>
+          <div className="flex-1">
+            <p className="text-sm font-semibold">
+              Status: {published ? <span className="text-brand">Live in search</span> : <span className="text-orange">Draft (not visible yet)</span>}
+            </p>
+            <p className="text-xs text-muted-foreground">Publish once your details look right.</p>
+          </div>
         </div>
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <Field label="Shop name">
-            <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
-          </Field>
-          <Field label="Username / nickname" hint="ojaservicehub.com/@nickname">
-            <div className="flex items-center rounded-2xl border border-border bg-background">
-              <span className="pl-3 text-sm text-muted-foreground">@</span>
-              <input value={nickname} onChange={(e) => setNickname(e.target.value)} className="flex-1 bg-transparent px-2 py-3 text-sm outline-none" />
-            </div>
+            <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} placeholder="e.g. Adaeze O. Bridal Beauty" />
           </Field>
           <Field label="Category">
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputClass}>
-              {["Beauty & Wellness", "Food & Chef", "Home services", "Fashion & Tailoring", "Repairs & Trades", "Events", "Other"].map((c) => (
-                <option key={c}>{c}</option>
+            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputClass}>
+              {categoryOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
               ))}
             </select>
           </Field>
           <Field label="Service area">
-            <input value={area} onChange={(e) => setArea(e.target.value)} className={inputClass} />
+            <input value={area} onChange={(e) => setArea(e.target.value)} className={inputClass} placeholder="e.g. Lekki Phase 1" />
           </Field>
           <Field label="Phone / WhatsApp">
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} />
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} placeholder="+234 800 000 0000" />
+          </Field>
+          <Field label="Starting price (₦)">
+            <input
+              type="number"
+              min={0}
+              value={priceFrom}
+              onChange={(e) => setPriceFrom(e.target.value)}
+              className={inputClass}
+              placeholder="e.g. 15000"
+            />
           </Field>
           <Field label="Tagline" hint="Shown under your shop name.">
             <textarea value={tagline} onChange={(e) => setTagline(e.target.value)} rows={3} className={inputClass} />
           </Field>
         </div>
-        <div className="mt-6 flex items-center justify-end gap-2">
+        {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
+        <div className="mt-6 flex flex-wrap items-center justify-end gap-2">
           {saved && <span className="text-xs text-brand">Saved ✓</span>}
           <button
-            onClick={() => {
-              setSaved(true);
-              setTimeout(() => setSaved(false), 1500);
-            }}
-            className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground"
+            disabled={saving}
+            onClick={() => saveProfile()}
+            className="rounded-full border border-border bg-background px-5 py-2 text-sm font-semibold disabled:opacity-50"
           >
-            Save profile
+            Save draft
+          </button>
+          <button
+            disabled={saving}
+            onClick={() => saveProfile(!published)}
+            className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            {published ? "Unpublish" : "Publish to search"}
           </button>
         </div>
       </section>
@@ -503,11 +626,14 @@ function ProfilePanel() {
         <div className="flex items-center gap-2 text-sm font-semibold text-brand">
           <ShieldCheck className="h-4 w-4" /> Verification status
         </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          ID and address verification aren't wired up yet — this section is still a placeholder.
+        </p>
         <div className="mt-3 grid gap-2 text-sm">
-          <VerifyItem label="Live selfie" done />
-          <VerifyItem label="Government ID (NIN)" done />
+          <VerifyItem label="Live selfie" done={false} />
+          <VerifyItem label="Government ID (NIN)" done={false} />
           <VerifyItem label="Proof of address" done={false} />
-          <VerifyItem label="Business bank account" done />
+          <VerifyItem label="Business bank account" done={false} />
         </div>
       </section>
     </div>
