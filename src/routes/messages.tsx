@@ -754,7 +754,7 @@ function NewChatDialog({
           <h2 className="text-lg font-semibold">Start a new chat</h2>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          Search for someone on Ọjà by their display name.
+          Search by @username, display name, or shop name.
         </p>
         <div className="mt-4 flex items-center gap-2 rounded-2xl border border-border bg-background px-3">
           <Search className="h-4 w-4 text-muted-foreground" />
@@ -762,7 +762,7 @@ function NewChatDialog({
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="e.g. Adaeze"
+            placeholder="e.g. @adaeze or Ada's Kitchen"
             className="w-full bg-transparent py-2.5 text-sm outline-none"
           />
         </div>
