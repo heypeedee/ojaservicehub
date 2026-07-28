@@ -75,10 +75,15 @@ function AuthGate() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [shopName, setShopName] = useState("");
+  const [isOwner, setIsOwner] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  const usernameOk = /^[a-zA-Z][a-zA-Z0-9_]{2,23}$/.test(username);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -87,11 +92,25 @@ function AuthGate() {
     setNotice(null);
     try {
       if (mode === "signup") {
+        if (!usernameOk) throw new Error("Username must be 3–24 chars, letters/numbers/underscore, start with a letter.");
+        if (!fullName.trim()) throw new Error("Please enter your full name.");
+        // Pre-check uniqueness (case-insensitive)
+        const { data: taken } = await supabase
+          .from("profiles")
+          .select("id")
+          .ilike("username", username)
+          .limit(1);
+        if (taken && taken.length) throw new Error("That username is taken. Try another.");
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            data: { display_name: displayName || email.split("@")[0] },
+            data: {
+              username,
+              display_name: fullName.trim(),
+              full_name: fullName.trim(),
+              shop_name: isOwner && shopName.trim() ? shopName.trim() : null,
+            },
             emailRedirectTo: `${window.location.origin}/messages`,
           },
         });
@@ -110,25 +129,62 @@ function AuthGate() {
   }
 
   return (
-    <div className="grid min-h-screen place-items-center bg-muted/40 px-4">
+    <div className="grid min-h-screen place-items-center bg-muted/40 px-4 py-10">
       <div className="w-full max-w-md rounded-3xl border border-border bg-card p-8 shadow-sm">
         <Link to="/" className="mb-6 inline-flex items-center gap-2">
           <OjaLogo size={36} />
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">
-          {mode === "signin" ? "Sign in to chat" : "Create your Ọjà account"}
+          {mode === "signin" ? "Sign in to Ọjà" : "Claim your Ọjà @username"}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Real-time chat is protected — messages only sync between people in the same conversation.
+          {mode === "signin"
+            ? "Sign in to chat, bargain and manage your bookings."
+            : "Your @username is your public identity across reviews, chats, bookings and offers."}
         </p>
         <form onSubmit={submit} className="mt-6 space-y-3">
           {mode === "signup" && (
-            <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Display name"
-              className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
-            />
+            <>
+              <div>
+                <div className="flex items-stretch overflow-hidden rounded-2xl border border-border bg-background focus-within:border-primary">
+                  <span className="grid place-items-center border-r border-border bg-muted/60 px-3 text-sm font-semibold text-muted-foreground">@</span>
+                  <input
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value.replace(/\s+/g, ""))}
+                    placeholder="yourname"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    className="w-full bg-transparent px-3 py-3 text-sm outline-none"
+                  />
+                </div>
+                <p className={`mt-1 text-[11px] ${username && !usernameOk ? "text-destructive" : "text-muted-foreground"}`}>
+                  3–24 chars, letters/numbers/underscore, must start with a letter.
+                </p>
+              </div>
+              <input
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Full name (kept private on your profile)"
+                className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
+              />
+              <label className="flex items-center gap-2 rounded-2xl border border-border bg-background px-4 py-3 text-xs">
+                <input
+                  type="checkbox"
+                  checked={isOwner}
+                  onChange={(e) => setIsOwner(e.target.checked)}
+                  className="h-4 w-4 accent-[oklch(var(--primary))]"
+                />
+                <span>I'm a market owner / service provider — add a shop name</span>
+              </label>
+              {isOwner && (
+                <input
+                  value={shopName}
+                  onChange={(e) => setShopName(e.target.value)}
+                  placeholder="Shop name (shown next to @username)"
+                  className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
+                />
+              )}
+            </>
           )}
           <input
             type="email"
