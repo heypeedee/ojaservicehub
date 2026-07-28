@@ -439,7 +439,7 @@ function ConvoList({
         )}
         {filtered.map((c) => {
           const others = (participantsByConvo[c.id] ?? []).filter((p) => p.id !== userId);
-          const title = c.title || others.map((o) => o.display_name ?? "Someone").join(", ") || "New chat";
+          const title = c.title || others.map((o) => nameWithShop(o)).join(", ") || "New chat";
           const initials = (title || "?").slice(0, 1).toUpperCase();
           const active = c.id === activeId;
           return (
