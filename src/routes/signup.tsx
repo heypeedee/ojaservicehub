@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -19,7 +19,10 @@ import {
   User,
   Wrench,
   Zap,
+  type LucideIcon,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { BackNav } from "@/components/BackNav";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({
@@ -44,16 +47,16 @@ export const Route = createFileRoute("/signup")({
 
 type Role = "customer" | "provider";
 
-const categories = [
-  { name: "Hair & Beauty", icon: Scissors },
-  { name: "Home Repair", icon: Wrench },
-  { name: "Cleaning", icon: Sparkles },
-  { name: "Electrical", icon: Zap },
-  { name: "Photography", icon: Camera },
-  { name: "Private Chef", icon: ChefHat },
-  { name: "Painting", icon: Paintbrush },
-  { name: "Handyman", icon: Briefcase },
-];
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  "Hair & Beauty": Scissors,
+  "Home Repair": Wrench,
+  Cleaning: Sparkles,
+  Electrical: Zap,
+  Photography: Camera,
+  "Private Chef": ChefHat,
+  Tailoring: Paintbrush,
+  "Auto Care": Briefcase,
+};
 
 function slugify(s: string) {
   return s
@@ -67,8 +70,55 @@ function slugify(s: string) {
 
 function SignupPage() {
   const navigate = useNavigate();
+  const [mode, setMode] = useState<"signup" | "login">("signup");
   const [role, setRole] = useState<Role | null>(null);
   const [step, setStep] = useState(0);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [dbCategories, setDbCategories] = useState<{ id: string; name: string }[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // Login-only fields
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    async function init() {
+      const [{ data: cats }, { data: sessionData }] = await Promise.all([
+        supabase.from("categories").select("id, name").order("sort_order"),
+        supabase.auth.getSession(),
+      ]);
+      if (!active) return;
+      setDbCategories(cats ?? []);
+      if (sessionData.session) {
+        // Already signed in — no need to go through signup again.
+        navigate({ to: "/pro/dashboard", replace: true });
+        return;
+      }
+      setCheckingSession(false);
+    }
+    init();
+    return () => {
+      active = false;
+    };
+  }, [navigate]);
+
+  async function handleLogin() {
+    setAuthError(null);
+    if (!loginEmail || !loginPassword) {
+      setAuthError("Enter your email and password.");
+      return;
+    }
+    setSubmitting(true);
+    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
+    setSubmitting(false);
+    if (error) {
+      setAuthError(error.message);
+      return;
+    }
+    navigate({ to: "/pro/dashboard", replace: true });
+  }
 
   // Common
   const [fullName, setFullName] = useState("");
@@ -100,6 +150,7 @@ function SignupPage() {
     area: string;
     tagline: string;
     services: { name: string; price: number }[];
+    pendingEmailConfirm?: boolean;
   }>(null);
 
   const slug = useMemo(() => slugify(bizName || fullName || "your-shop"), [bizName, fullName]);
@@ -116,8 +167,72 @@ function SignupPage() {
     setServicePrice("");
   }
 
-  function submit() {
-    if (role === "provider") {
+  async function submit() {
+    setAuthError(null);
+    setSubmitting(true);
+
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          display_name: fullName,
+          full_name: fullName,
+        },
+      },
+    });
+
+    if (signUpError) {
+      setSubmitting(false);
+      setAuthError(signUpError.message);
+      return;
+    }
+
+    const userId = signUpData.session?.user?.id ?? signUpData.user?.id ?? null;
+
+    if (!signUpData.session) {
+      // Email confirmation is required before a session exists — can't create
+      // the provider profile yet (RLS requires an authenticated user).
+      setSubmitting(false);
+      setStep(totalSteps);
+      setCreated({
+        slug,
+        name: bizName || fullName,
+        category: category || "Services",
+        area: `${area || "your area"}, ${city}`,
+        tagline: tagline || "Trusted local professional",
+        services: services.length
+          ? services
+          : priceFrom
+            ? [{ name: "Starter service", price: Number(priceFrom) }]
+            : [],
+        pendingEmailConfirm: true,
+      });
+      return;
+    }
+
+    if (role === "provider" && userId) {
+      const matchedCategory = dbCategories.find((c) => c.name === category);
+      const computedPrice =
+        services.length > 0 ? Math.min(...services.map((s) => s.price)) : priceFrom ? Number(priceFrom) : 0;
+
+      const { error: profileError } = await supabase.from("provider_profiles").upsert({
+        id: userId,
+        business_name: bizName || fullName,
+        tagline: tagline || null,
+        category_id: matchedCategory?.id ?? null,
+        area: `${area || "your area"}, ${city}`,
+        phone: phone || null,
+        price_from: computedPrice,
+        published: true,
+      });
+
+      setSubmitting(false);
+      if (profileError) {
+        setAuthError(profileError.message);
+        return;
+      }
+
       setCreated({
         slug,
         name: bizName || fullName,
@@ -132,6 +247,7 @@ function SignupPage() {
       });
       setStep(totalSteps);
     } else {
+      setSubmitting(false);
       setStep(totalSteps);
     }
   }
@@ -175,6 +291,50 @@ function SignupPage() {
     );
   }
 
+  if (checkingSession) {
+    return (
+      <Shell>
+        <div className="mx-auto max-w-md py-20 text-center text-sm text-muted-foreground">Loading…</div>
+      </Shell>
+    );
+  }
+
+  // Login
+  if (mode === "login") {
+    return (
+      <Shell>
+        <div className="mx-auto max-w-md">
+          <h1 className="text-3xl font-semibold tracking-tight">Sign in</h1>
+          <p className="mt-2 text-muted-foreground">Welcome back to Ọjà.</p>
+          <div className="mt-6 rounded-3xl border border-border bg-card p-6 shadow-sm">
+            <div className="grid gap-3">
+              <Field label="Email">
+                <input value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} type="email" className={inputCls} placeholder="you@email.com" />
+              </Field>
+              <Field label="Password">
+                <input value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} type="password" className={inputCls} placeholder="Your password" />
+              </Field>
+            </div>
+            {authError && <p className="mt-3 text-sm text-destructive">{authError}</p>}
+            <button
+              onClick={handleLogin}
+              disabled={submitting}
+              className="mt-6 inline-flex w-full items-center justify-center gap-1 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              {submitting ? "Signing in…" : "Sign in"}
+            </button>
+          </div>
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            New here?{" "}
+            <button onClick={() => { setMode("signup"); setAuthError(null); }} className="font-semibold text-foreground hover:underline">
+              Create an account
+            </button>
+          </p>
+        </div>
+      </Shell>
+    );
+  }
+
   // Role picker
   if (!role) {
     return (
@@ -200,7 +360,10 @@ function SignupPage() {
             />
           </div>
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            Already have an account? <span className="font-semibold text-foreground">Sign in</span>
+            Already have an account?{" "}
+            <button onClick={() => { setMode("login"); setAuthError(null); }} className="font-semibold text-foreground hover:underline">
+              Sign in
+            </button>
           </p>
         </div>
       </Shell>
@@ -274,12 +437,12 @@ function SignupPage() {
             <>
               <StepHead title="What are you looking for?" sub="Pick a few — we'll personalize your home feed. You can change this anytime." />
               <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {categories.map((c) => {
+                {dbCategories.map((c) => {
                   const on = interests.includes(c.name);
-                  const Icon = c.icon;
+                  const Icon = CATEGORY_ICONS[c.name] ?? Store;
                   return (
                     <button
-                      key={c.name}
+                      key={c.id}
                       onClick={() => toggleInterest(c.name)}
                       className={`flex items-center gap-2 rounded-xl border p-3 text-left text-sm transition ${
                         on ? "border-primary bg-primary/10 text-primary" : "border-border bg-card hover:bg-muted"
@@ -303,12 +466,13 @@ function SignupPage() {
                 <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-1" />
                 <span>I agree to Ọjà's terms of service, community guidelines and privacy policy.</span>
               </label>
+              {authError && <p className="mt-3 text-sm text-destructive">{authError}</p>}
               <button
                 onClick={submit}
-                disabled={!agree}
+                disabled={!agree || submitting}
                 className="mt-6 inline-flex w-full items-center justify-center gap-1 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
               >
-                Create my account <ArrowRight className="h-4 w-4" />
+                {submitting ? "Creating account…" : <>Create my account <ArrowRight className="h-4 w-4" /></>}
               </button>
             </>
           )}
@@ -322,9 +486,9 @@ function SignupPage() {
                 </Field>
                 <Field label="Main category">
                   <div className="flex flex-wrap gap-2">
-                    {categories.map((c) => (
+                    {dbCategories.map((c) => (
                       <button
-                        key={c.name}
+                        key={c.id}
                         onClick={() => setCategory(c.name)}
                         className={`rounded-full border px-3 py-1 text-xs font-semibold ${
                           category === c.name ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"
@@ -423,12 +587,13 @@ function SignupPage() {
                   We verify quickly — most pros get their badge within 24 hours. You can start taking bookings immediately.
                 </span>
               </div>
+              {authError && <p className="mt-3 text-sm text-destructive">{authError}</p>}
               <button
                 onClick={submit}
-                disabled={!agree}
+                disabled={!agree || submitting}
                 className="mt-6 inline-flex w-full items-center justify-center gap-1 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
               >
-                Create my storefront <ArrowRight className="h-4 w-4" />
+                {submitting ? "Creating storefront…" : <>Create my storefront <ArrowRight className="h-4 w-4" /></>}
               </button>
             </>
           )}
@@ -446,9 +611,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-muted/30">
       <div className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> Ọjà
-          </Link>
+          <BackNav label="Ọjà" />
           <span className="text-xs font-semibold text-muted-foreground">Create your account</span>
         </div>
       </div>
@@ -546,8 +709,26 @@ function StorefrontLive({
     area: string;
     tagline: string;
     services: { name: string; price: number }[];
+    pendingEmailConfirm?: boolean;
   };
 }) {
+  if (created.pendingEmailConfirm) {
+    return (
+      <Shell>
+        <div className="mx-auto max-w-lg rounded-3xl border border-border bg-card p-8 text-center shadow-sm">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-primary/10 text-primary">
+            <Mail className="h-7 w-7" />
+          </div>
+          <h1 className="mt-4 text-2xl font-semibold">Confirm your email</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            We sent a confirmation link to your inbox. Once confirmed, sign in and finish publishing{" "}
+            <span className="font-semibold text-foreground">{created.name}</span> from your business dashboard.
+          </p>
+        </div>
+      </Shell>
+    );
+  }
+
   return (
     <Shell>
       <div className="mx-auto max-w-3xl">
@@ -581,7 +762,7 @@ function StorefrontLive({
           )}
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <NextStep title="Preview it" body="See how customers will find and book you." to="/pro/adaeze" cta="Open preview" />
+            <NextStep title="See yourself live" body="Find your listing the way customers will." to="/search" cta="Open search" />
             <NextStep title="Set up dashboard" body="Track bookings, revenue and reviews." to="/pro/dashboard" cta="Open dashboard" />
             <NextStep title="Get discovered" body="Boost placement in search and Instant Match." to="/plans" cta="See Premium" />
           </div>

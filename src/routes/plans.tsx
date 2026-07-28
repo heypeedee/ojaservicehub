@@ -18,6 +18,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import { BackNav } from "@/components/BackNav";
 
 type Billing = "monthly" | "yearly";
 type PlanId = "free" | "premium";
@@ -58,9 +59,7 @@ function PlansPage() {
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/40">
       <header className="sticky top-0 z-20 border-b border-border/60 bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> Ọjà
-          </Link>
+          <BackNav label="Ọjà" />
           <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
             <Crown className="h-3 w-3" /> Plans & pricing
           </span>

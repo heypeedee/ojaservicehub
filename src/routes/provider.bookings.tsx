@@ -10,6 +10,7 @@ import {
   Star,
   X,
 } from "lucide-react";
+import { BackNav } from "@/components/BackNav";
 
 export const Route = createFileRoute("/provider/bookings")({
   head: () => ({
@@ -151,12 +152,7 @@ function ProviderBookings() {
     <div className="min-h-screen bg-muted/30">
       <div className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" /> Back to Ọjà
-          </Link>
+          <BackNav label="Back to Ọjà" />
           <div className="hidden items-center gap-2 sm:flex">
             <div className="grid h-8 w-8 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
               AO

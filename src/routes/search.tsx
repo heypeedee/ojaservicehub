@@ -12,6 +12,7 @@ import {
   Star,
   X,
 } from "lucide-react";
+import { BackNav } from "@/components/BackNav";
 
 export const Route = createFileRoute("/search")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -230,9 +231,7 @@ function SearchPage() {
     <div className="min-h-screen bg-muted/30">
       <div className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> Ọjà
-          </Link>
+          <BackNav label="Ọjà" />
           <button
             onClick={() => setShowFilters((s) => !s)}
             className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium lg:hidden"
