@@ -162,7 +162,7 @@ function BookPage() {
       scheduled_at: scheduledAt,
       location: provider.area,
       notes: notes || null,
-      status: "New",
+      status: "pending",
     });
     setSubmitting(false);
     if (error) {
