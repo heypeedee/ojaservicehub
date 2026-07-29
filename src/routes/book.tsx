@@ -88,12 +88,13 @@ function BookPage() {
       ]);
       if (!active) return;
       setUserId(sessionData.session?.user?.id ?? null);
+      setUserEmail(sessionData.session?.user?.email ?? "");
       if (pp) {
         setProvider({
           id: pp.id,
           name: pp.business_name,
           craft: pp.categories?.name ?? "Service provider",
-          area: pp.area ?? "",
+          area: pp.area,
           rating: pp.rating,
           reviews: pp.review_count,
           tier: pp.tier,
@@ -118,6 +119,8 @@ function BookPage() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState("");
+  const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!serviceId && serviceOptions.length > 0) setServiceId(serviceOptions[0].id);
@@ -128,8 +131,6 @@ function BookPage() {
     [serviceId, serviceOptions]
   );
   const total = service?.price ?? 0;
-  const escrowFee = Math.round(total * 0.03);
-  const grand = total + escrowFee;
 
   const canNext =
     (step === 0 && !!serviceId) ||
@@ -144,7 +145,74 @@ function BookPage() {
     if (step > 0) setStep((s) => s - 1);
   }
 
+  function loadPaystackScript(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if ((window as any).PaystackPop) return resolve();
+      const existing = document.getElementById("paystack-inline-script");
+      if (existing) {
+        existing.addEventListener("load", () => resolve());
+        return;
+      }
+      const script = document.createElement("script");
+      script.id = "paystack-inline-script";
+      script.src = "https://js.paystack.co/v1/inline.js";
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Could not load payment provider"));
+      document.body.appendChild(script);
+    });
+  }
+
+  async function payForBooking(bookingId: string) {
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await loadPaystackScript();
+      const reference = `oja_${bookingId}_${Date.now()}`;
+
+      await supabase.from("bookings").update({ paystack_reference: reference }).eq("id", bookingId);
+
+      const PaystackPop = (window as any).PaystackPop;
+      const handler = PaystackPop.setup({
+        key: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+        email: userEmail || "guest@ojaservicehub.com",
+        amount: Math.round(total * 100),
+        currency: "NGN",
+        ref: reference,
+        callback: (_response: unknown) => {
+          (async () => {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const { data: verifyData, error: verifyError } = await supabase.functions.invoke("verify-payment", {
+              body: { bookingId, reference },
+              headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
+            });
+            setSubmitting(false);
+            if (verifyError || (verifyData as any)?.error) {
+              setSubmitError("Payment received, but we couldn't confirm it automatically. We'll verify shortly.");
+              setPendingBookingId(bookingId);
+              return;
+            }
+            setSubmitted(true);
+          })();
+        },
+        onClose: () => {
+          setSubmitting(false);
+          setSubmitError("Payment window closed. Your booking is saved — you can try paying again.");
+          setPendingBookingId(bookingId);
+        },
+      });
+      handler.openIframe();
+    } catch (e) {
+      setSubmitting(false);
+      setSubmitError(e instanceof Error ? e.message : "Something went wrong starting payment.");
+      setPendingBookingId(bookingId);
+    }
+  }
+
   async function submitBooking() {
+    if (pendingBookingId) {
+      await payForBooking(pendingBookingId);
+      return;
+    }
     if (!provider || !service) return;
     if (!userId) {
       setSubmitError("Sign in to send a booking request.");
@@ -153,23 +221,27 @@ function BookPage() {
     setSubmitting(true);
     setSubmitError(null);
     const scheduledAt = date && time ? new Date(`${date}T${time}:00`).toISOString() : null;
-    const { error } = await supabase.from("bookings").insert({
-      provider_id: provider.id,
-      customer_id: userId,
-      service_id: service.id,
-      service_title: service.name,
-      amount: total,
-      scheduled_at: scheduledAt,
-      location: provider.area,
-      notes: notes || null,
-      status: "pending",
-    });
-    setSubmitting(false);
-    if (error) {
-      setSubmitError(error.message);
+    const { data, error } = await supabase
+      .from("bookings")
+      .insert({
+        provider_id: provider.id,
+        customer_id: userId,
+        service_id: service.id,
+        service_title: service.name,
+        amount: total,
+        scheduled_at: scheduledAt,
+        location: provider.area,
+        notes: notes || null,
+        status: "New",
+      })
+      .select("id")
+      .single();
+    if (error || !data) {
+      setSubmitting(false);
+      setSubmitError(error?.message ?? "Could not create booking");
       return;
     }
-    setSubmitted(true);
+    await payForBooking(data.id);
   }
 
   function handleFiles(list: FileList | null) {
@@ -223,7 +295,7 @@ function BookPage() {
   }
 
   if (submitted) {
-    return <BookingSuccess provider={provider} service={service!} date={date} time={time} total={grand} />;
+    return <BookingSuccess provider={provider} service={service!} date={date} time={time} total={total} />;
   }
 
   return (
@@ -262,8 +334,6 @@ function BookPage() {
                 notes={notes}
                 photos={photos}
                 total={total}
-                escrowFee={escrowFee}
-                grand={grand}
               />
             )}
 
@@ -291,7 +361,11 @@ function BookPage() {
                   disabled={submitting || !service}
                   className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 disabled:opacity-50"
                 >
-                  {submitting ? "Sending…" : <>Send booking request <Check className="h-4 w-4" /></>}
+                  {submitting
+                    ? "Opening payment…"
+                    : pendingBookingId
+                      ? <>Try payment again <Check className="h-4 w-4" /></>
+                      : <>Pay ₦{total.toLocaleString()} & book <Check className="h-4 w-4" /></>}
                 </button>
               )}
             </div>
@@ -306,8 +380,6 @@ function BookPage() {
               date={date}
               time={time}
               total={total}
-              escrowFee={escrowFee}
-              grand={grand}
             />
           )}
         </aside>
@@ -547,8 +619,6 @@ function ReviewStep({
   notes,
   photos,
   total,
-  escrowFee,
-  grand,
 }: {
   provider: ProviderInfo;
   service: ServiceOption;
@@ -557,14 +627,13 @@ function ReviewStep({
   notes: string;
   photos: { name: string; url: string }[];
   total: number;
-  escrowFee: number;
-  grand: number;
 }) {
   return (
     <div>
       <h2 className="text-xl font-semibold">Review your booking</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Your funds will be held in escrow and released after the job is completed.
+        Your payment is held in escrow and only released to {provider.name.split(" ")[0]} after the job is
+        completed.
       </p>
       <dl className="mt-5 divide-y divide-border rounded-xl border border-border">
         <Row label="Service" value={`${service.name} · ${service.duration}`} />
@@ -580,18 +649,13 @@ function ReviewStep({
         />
       </dl>
       <div className="mt-5 rounded-xl border border-border bg-muted/50 p-4 text-sm">
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Service</span>
+        <div className="flex justify-between text-base font-semibold">
+          <span>Total — held in escrow</span>
           <span>₦{total.toLocaleString()}</span>
         </div>
-        <div className="mt-1 flex justify-between">
-          <span className="text-muted-foreground">Escrow protection (3%)</span>
-          <span>₦{escrowFee.toLocaleString()}</span>
-        </div>
-        <div className="mt-3 flex justify-between border-t border-border pt-3 text-base font-semibold">
-          <span>Total held in escrow</span>
-          <span>₦{grand.toLocaleString()}</span>
-        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          You'll pay this now via Paystack. It's released to the pro once the job is marked complete.
+        </p>
       </div>
     </div>
   );
@@ -612,16 +676,12 @@ function SummaryCard({
   date,
   time,
   total,
-  escrowFee,
-  grand,
 }: {
   provider: ProviderInfo;
   service: ServiceOption;
   date: string;
   time: string;
   total: number;
-  escrowFee: number;
-  grand: number;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
@@ -665,17 +725,9 @@ function SummaryCard({
       </div>
 
       <div className="mt-4 space-y-1 border-t border-border pt-4 text-sm">
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Subtotal</span>
-          <span>₦{total.toLocaleString()}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Escrow fee</span>
-          <span>₦{escrowFee.toLocaleString()}</span>
-        </div>
         <div className="flex justify-between pt-2 text-base font-semibold">
-          <span>Total</span>
-          <span>₦{grand.toLocaleString()}</span>
+          <span>Total — held in escrow</span>
+          <span>₦{total.toLocaleString()}</span>
         </div>
       </div>
 
@@ -707,10 +759,9 @@ function BookingSuccess({
         <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg">
           <Check className="h-8 w-8" />
         </div>
-        <h1 className="mt-6 text-2xl font-semibold tracking-tight">Booking request sent!</h1>
+        <h1 className="mt-6 text-2xl font-semibold tracking-tight">Payment received — booking confirmed!</h1>
         <p className="mt-2 text-muted-foreground">
-          {provider.name} typically replies within 15 minutes. You'll get a push notification when
-          they accept.
+          Your payment is held in escrow. {provider.name} has been notified and will confirm the job.
         </p>
         <div className="mt-6 rounded-2xl border border-border bg-card p-5 text-left text-sm shadow-sm">
           <Row label="Service" value={service.name} />
@@ -719,10 +770,10 @@ function BookingSuccess({
         </div>
         <div className="mt-6 flex justify-center gap-3">
           <Link
-            to="/provider/bookings"
+            to="/dashboard"
             className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-medium hover:bg-muted"
           >
-            View as provider
+            View my bookings
           </Link>
           <Link
             to="/"

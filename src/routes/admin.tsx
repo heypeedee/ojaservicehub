@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -26,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { BackNav } from "@/components/BackNav";
+import { supabase } from "@/integrations/supabase/client";
 
 type Section =
   | "overview"
@@ -74,6 +75,57 @@ export const Route = createFileRoute("/admin")({
 
 function AdminPanel() {
   const [section, setSection] = useState<Section>("overview");
+  const [checking, setChecking] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    async function check() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!active) return;
+      setSignedIn(!!session);
+      if (!session) {
+        setChecking(false);
+        return;
+      }
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", session.user.id)
+        .maybeSingle();
+      if (!active) return;
+      setIsAdmin(!!profile?.is_admin);
+      setChecking(false);
+    }
+    check();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (checking) {
+    return <div className="grid min-h-screen place-items-center text-sm text-muted-foreground">Loading…</div>;
+  }
+
+  if (!signedIn || !isAdmin) {
+    return (
+      <div className="grid min-h-screen place-items-center px-4 text-center">
+        <div>
+          <Shield className="mx-auto h-8 w-8 text-muted-foreground" />
+          <p className="mt-3 font-semibold text-foreground">Admin access only</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {signedIn ? "Your account doesn't have admin access." : "Sign in with an admin account to continue."}
+          </p>
+          <Link to="/" className="mt-4 inline-flex items-center gap-1 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground">
+            Back to Ọjà
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -179,41 +231,105 @@ function StatCard({ icon: Icon, label, value, sub }: { icon: typeof Users; label
 }
 
 function Overview({ onGo }: { onGo: (s: Section) => void }) {
+  const [loading, setLoading] = useState(true);
+  const [userCount, setUserCount] = useState(0);
+  const [providerCount, setProviderCount] = useState(0);
+  const [pendingVerification, setPendingVerification] = useState(0);
+  const [gmv, setGmv] = useState(0);
+  const [payoutsPending, setPayoutsPending] = useState(0);
+  const [payoutsPendingCount, setPayoutsPendingCount] = useState(0);
+  const [recentBookings, setRecentBookings] = useState<{ id: string; label: string; when: string }[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const [
+        { count: users },
+        { count: providers },
+        { count: unverified },
+        { data: paidBookings },
+        { data: recent },
+      ] = await Promise.all([
+        supabase.from("profiles").select("id", { count: "exact", head: true }),
+        supabase.from("provider_profiles").select("id", { count: "exact", head: true }).eq("published", true),
+        supabase.from("provider_profiles").select("id", { count: "exact", head: true }).eq("published", true).eq("verified", false),
+        supabase.from("bookings").select("amount, payment_status").in("payment_status", ["Paid", "Released"]),
+        supabase
+          .from("bookings")
+          .select("id, service_title, status, created_at, provider_profiles(business_name)")
+          .order("created_at", { ascending: false })
+          .limit(5),
+      ]);
+      if (!active) return;
+      setUserCount(users ?? 0);
+      setProviderCount(providers ?? 0);
+      setPendingVerification(unverified ?? 0);
+      const paid = paidBookings ?? [];
+      setGmv(paid.reduce((s, b) => s + Number(b.amount), 0));
+      const pendingPaid = paid.filter((b) => b.payment_status === "Paid");
+      setPayoutsPending(pendingPaid.reduce((s, b) => s + Number(b.amount), 0));
+      setPayoutsPendingCount(pendingPaid.length);
+      setRecentBookings(
+        ((recent as any[]) ?? []).map((b) => ({
+          id: b.id,
+          label: `${b.provider_profiles?.business_name ?? "A pro"} · ${b.service_title} (${b.status})`,
+          when: new Date(b.created_at).toLocaleDateString("en-NG", { month: "short", day: "numeric" }),
+        }))
+      );
+      setLoading(false);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
-    <Section title="Platform overview" subtitle="A snapshot of trust & safety and financial health across Ọjà.">
+    <Section title="Platform overview" subtitle="A live snapshot of Ọjà — no synthetic numbers.">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={Users} label="Users" value="12,481" sub="+128 / 7d" />
-        <StatCard icon={BadgeCheck} label="Active providers" value="1,942" sub="+34 / 7d" />
-        <StatCard icon={ShieldCheck} label="Verification queue" value="17" sub="pending" />
-        <StatCard icon={Gavel} label="Open disputes" value="6" sub="3 escalated" />
-        <StatCard icon={DollarSign} label="GMV (30d)" value="₦186.4M" sub="+22.1%" />
-        <StatCard icon={Wallet} label="Payouts pending" value="₦12.9M" sub="8 requests" />
-        <StatCard icon={ShieldAlert} label="Fraud flags" value="9" sub="4 high-risk" />
-        <StatCard icon={TrendingUp} label="Take rate" value="12.5%" sub="platform fee" />
+        <StatCard icon={Users} label="Users" value={loading ? "—" : String(userCount)} />
+        <StatCard icon={BadgeCheck} label="Published providers" value={loading ? "—" : String(providerCount)} />
+        <StatCard icon={ShieldCheck} label="Awaiting verification" value={loading ? "—" : String(pendingVerification)} />
+        <StatCard icon={DollarSign} label="GMV (paid + released)" value={loading ? "—" : `₦${gmv.toLocaleString()}`} />
+        <StatCard
+          icon={Wallet}
+          label="Held in escrow"
+          value={loading ? "—" : `₦${payoutsPending.toLocaleString()}`}
+          sub={loading ? undefined : `${payoutsPendingCount} booking${payoutsPendingCount === 1 ? "" : "s"}`}
+        />
+        <StatCard icon={TrendingUp} label="Platform commission" value="5%" sub="fixed, set in Edge Functions" />
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold">Needs your attention</h2>
-            <span className="text-[11px] text-muted-foreground">Updated just now</span>
           </div>
           <ul className="space-y-2 text-sm">
-            <QueueRow tint="bg-amber-100 text-amber-700" icon={ShieldCheck} title="17 provider verifications" body="6 waiting > 24 hours" onOpen={() => onGo("verification")} />
-            <QueueRow tint="bg-rose-100 text-rose-700" icon={Gavel} title="6 open disputes" body="3 escalated to admin" onOpen={() => onGo("disputes")} />
-            <QueueRow tint="bg-primary/10 text-primary" icon={Wallet} title="8 payout requests" body="Totalling ₦12.9M" onOpen={() => onGo("payouts")} />
-            <QueueRow tint="bg-sky-100 text-sky-700" icon={Flag} title="12 flagged listings" body="Auto-flagged by policy checks" onOpen={() => onGo("listings")} />
+            <QueueRow
+              tint="bg-amber-100 text-amber-700"
+              icon={ShieldCheck}
+              title={`${pendingVerification} provider${pendingVerification === 1 ? "" : "s"} awaiting verification`}
+              body="Review and mark verified"
+              onOpen={() => onGo("verification")}
+            />
+            <QueueRow
+              tint="bg-primary/10 text-primary"
+              icon={Wallet}
+              title={`${payoutsPendingCount} booking${payoutsPendingCount === 1 ? "" : "s"} held in escrow`}
+              body={`Totalling ₦${payoutsPending.toLocaleString()}`}
+              onOpen={() => onGo("payouts")}
+            />
           </ul>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold">Recent admin actions</h2>
+          <h2 className="mb-3 text-sm font-semibold">Recent bookings</h2>
           <ul className="space-y-3 text-sm">
-            <ActionRow who="You" what="Approved verification for Adaeze O." when="2 min ago" />
-            <ActionRow who="Ola (admin)" what="Refunded ₦45,000 escrow to Ada A." when="27 min ago" />
-            <ActionRow who="System" what="Auto-suspended account for velocity fraud" when="1 hr ago" />
-            <ActionRow who="Tobi (admin)" what="Approved payout ₦180,000 to GTBank" when="3 hr ago" />
-            <ActionRow who="You" what="Added new category: Pet grooming" when="Yesterday" />
+            {recentBookings.length === 0 && <li className="text-xs text-muted-foreground">No bookings yet.</li>}
+            {recentBookings.map((b) => (
+              <ActionRow key={b.id} who={b.label} what="" when={b.when} />
+            ))}
           </ul>
         </div>
       </div>
@@ -250,74 +366,101 @@ function ActionRow({ who, what, when }: { who: string; what: string; when: strin
 type UserRow = {
   id: string;
   name: string;
-  email: string;
-  role: "Customer" | "Provider" | "Admin";
+  role: "Customer" | "Provider";
   joined: string;
-  status: "Active" | "Suspended" | "Pending";
-  jobs: number;
+  suspended: boolean;
 };
 
-const usersSeed: UserRow[] = [
-  { id: "u_001", name: "Ada Adegoke", email: "ada@mail.com", role: "Customer", joined: "Jul 12, 2025", status: "Active", jobs: 14 },
-  { id: "u_002", name: "Adaeze Okafor", email: "adaeze@mail.com", role: "Provider", joined: "Feb 04, 2024", status: "Active", jobs: 214 },
-  { id: "u_003", name: "Kelechi Musa", email: "kelechi@mail.com", role: "Customer", joined: "May 22, 2025", status: "Active", jobs: 5 },
-  { id: "u_004", name: "Tobi Balogun", email: "tobi@mail.com", role: "Provider", joined: "Jan 09, 2025", status: "Suspended", jobs: 3 },
-  { id: "u_005", name: "Ngozi Eze", email: "ngozi@mail.com", role: "Customer", joined: "Sep 01, 2025", status: "Active", jobs: 22 },
-  { id: "u_006", name: "Chidera Obi", email: "chidera@mail.com", role: "Provider", joined: "Mar 14, 2025", status: "Pending", jobs: 0 },
-];
-
 function UsersView() {
-  const [rows, setRows] = useState(usersSeed);
+  const [rows, setRows] = useState<UserRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const filtered = rows.filter((r) => (r.name + r.email).toLowerCase().includes(q.toLowerCase()));
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  function toggle(id: string) {
-    setRows((all) => all.map((r) => (r.id === id ? { ...r, status: r.status === "Active" ? "Suspended" : "Active" } : r)));
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const [{ data: profiles }, { data: providerIds }] = await Promise.all([
+        supabase.from("profiles").select("id, display_name, full_name, created_at, suspended").order("created_at", { ascending: false }),
+        supabase.from("provider_profiles").select("id"),
+      ]);
+      if (!active) return;
+      const providerSet = new Set((providerIds ?? []).map((p) => p.id));
+      setRows(
+        (profiles ?? []).map((p) => ({
+          id: p.id,
+          name: p.display_name || p.full_name || "Unnamed user",
+          role: providerSet.has(p.id) ? "Provider" : "Customer",
+          joined: new Date(p.created_at).toLocaleDateString("en-NG", { year: "numeric", month: "short", day: "numeric" }),
+          suspended: p.suspended,
+        }))
+      );
+      setLoading(false);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filtered = rows.filter((r) => r.name.toLowerCase().includes(q.toLowerCase()));
+
+  async function toggle(id: string, suspended: boolean) {
+    setBusyId(id);
+    const { error } = await supabase.from("profiles").update({ suspended: !suspended }).eq("id", id);
+    setBusyId(null);
+    if (!error) setRows((all) => all.map((r) => (r.id === id ? { ...r, suspended: !suspended } : r)));
   }
+
   return (
-    <Section title="Users" subtitle="Manage every account on the platform.">
+    <Section title="Users" subtitle="Every account on the platform.">
       <div className="mb-3">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search by name or email"
+          placeholder="Search by name"
           className="w-full max-w-sm rounded-full border border-border bg-card px-4 py-2 text-sm outline-none focus:border-primary"
         />
       </div>
       <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="border-b border-border text-left text-[11px] uppercase text-muted-foreground">
             <tr>
-              <th className="p-3">User</th><th className="p-3">Role</th><th className="p-3">Joined</th><th className="p-3">Jobs</th><th className="p-3">Status</th><th className="p-3 text-right">Actions</th>
+              <th className="p-3">User</th><th className="p-3">Role</th><th className="p-3">Joined</th><th className="p-3">Status</th><th className="p-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((u) => (
-              <tr key={u.id} className="border-b border-border/60 last:border-0">
-                <td className="p-3">
-                  <p className="font-semibold">{u.name}</p>
-                  <p className="text-[11px] text-muted-foreground">{u.email}</p>
-                </td>
-                <td className="p-3">{u.role}</td>
-                <td className="p-3 text-muted-foreground">{u.joined}</td>
-                <td className="p-3">{u.jobs}</td>
-                <td className="p-3">
-                  <StatusPill status={u.status} />
-                </td>
-                <td className="p-3">
-                  <div className="flex justify-end gap-1">
-                    <button className="grid h-7 w-7 place-items-center rounded-full border border-border text-muted-foreground hover:bg-muted" title="View"><Eye className="h-3.5 w-3.5" /></button>
-                    <button
-                      onClick={() => toggle(u.id)}
-                      title={u.status === "Active" ? "Suspend" : "Reactivate"}
-                      className={`grid h-7 w-7 place-items-center rounded-full border ${u.status === "Active" ? "border-rose-200 text-rose-700 hover:bg-rose-50" : "border-emerald-200 text-emerald-700 hover:bg-emerald-50"}`}
-                    >
-                      {u.status === "Active" ? <Ban className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {loading && (
+              <tr><td colSpan={5} className="p-6 text-center text-xs text-muted-foreground">Loading…</td></tr>
+            )}
+            {!loading && filtered.length === 0 && (
+              <tr><td colSpan={5} className="p-6 text-center text-xs text-muted-foreground">No users found.</td></tr>
+            )}
+            {!loading &&
+              filtered.map((u) => (
+                <tr key={u.id} className="border-b border-border/60 last:border-0">
+                  <td className="p-3">
+                    <p className="font-semibold">{u.name}</p>
+                  </td>
+                  <td className="p-3">{u.role}</td>
+                  <td className="p-3 text-muted-foreground">{u.joined}</td>
+                  <td className="p-3">
+                    <StatusPill status={u.suspended ? "Suspended" : "Active"} />
+                  </td>
+                  <td className="p-3">
+                    <div className="flex justify-end gap-1">
+                      <button
+                        onClick={() => toggle(u.id, u.suspended)}
+                        disabled={busyId === u.id}
+                        title={u.suspended ? "Reactivate" : "Suspend"}
+                        className={`grid h-7 w-7 place-items-center rounded-full border disabled:opacity-50 ${u.suspended ? "border-emerald-200 text-emerald-700 hover:bg-emerald-50" : "border-rose-200 text-rose-700 hover:bg-rose-50"}`}
+                      >
+                        {u.suspended ? <Check className="h-3.5 w-3.5" /> : <Ban className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </div>
@@ -336,15 +479,59 @@ function StatusPill({ status }: { status: string }) {
   return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>{status}</span>;
 }
 
+type ProviderRow = {
+  id: string;
+  name: string;
+  cat: string;
+  rating: number;
+  reviewCount: number;
+  tier: string;
+  published: boolean;
+};
+
 function ProvidersView() {
-  const pros = [
-    { id: "p1", name: "Adaeze Okafor", cat: "Bridal makeup", rating: 4.98, jobs: 214, tier: "Elite" },
-    { id: "p2", name: "James Ekene", cat: "Electrician", rating: 4.82, jobs: 96, tier: "Platinum" },
-    { id: "p3", name: "Chef Bola", cat: "Private chef", rating: 4.91, jobs: 132, tier: "Gold" },
-    { id: "p4", name: "Zainab Ali", cat: "Home cleaning", rating: 4.70, jobs: 58, tier: "Silver" },
-  ];
+  const [pros, setPros] = useState<ProviderRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const { data } = await supabase
+        .from("provider_profiles")
+        .select("id, business_name, rating, review_count, tier, published, categories(name)")
+        .order("rating", { ascending: false });
+      if (!active) return;
+      setPros(
+        ((data as any[]) ?? []).map((p) => ({
+          id: p.id,
+          name: p.business_name,
+          cat: p.categories?.name ?? "—",
+          rating: p.rating,
+          reviewCount: p.review_count,
+          tier: p.tier,
+          published: p.published,
+        }))
+      );
+      setLoading(false);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function toggleSuspend(id: string, published: boolean) {
+    setBusyId(id);
+    const { error } = await supabase.from("provider_profiles").update({ published: !published }).eq("id", id);
+    setBusyId(null);
+    if (!error) setPros((all) => all.map((p) => (p.id === id ? { ...p, published: !published } : p)));
+  }
+
   return (
-    <Section title="Providers" subtitle="Featured, verified, and top-earning providers.">
+    <Section title="Providers" subtitle="Every published and draft provider shop on Ọjà.">
+      {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {!loading && pros.length === 0 && <p className="text-sm text-muted-foreground">No providers yet.</p>}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {pros.map((p) => (
           <div key={p.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
@@ -354,11 +541,20 @@ function ProvidersView() {
             </div>
             <p className="text-xs text-muted-foreground">{p.cat}</p>
             <div className="mt-3 flex items-center justify-between text-xs">
-              <span>★ {p.rating}</span><span>{p.jobs} jobs</span>
+              <span>★ {p.rating > 0 ? p.rating.toFixed(2) : "New"}</span>
+              <span>{p.reviewCount} reviews</span>
+              <StatusPill status={p.published ? "Active" : "Suspended"} />
             </div>
             <div className="mt-3 flex gap-2">
-              <button className="flex-1 rounded-full border border-border py-1 text-xs font-semibold hover:bg-muted">Feature</button>
-              <button className="flex-1 rounded-full border border-rose-200 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50">Suspend</button>
+              <button
+                onClick={() => toggleSuspend(p.id, p.published)}
+                disabled={busyId === p.id}
+                className={`flex-1 rounded-full border py-1 text-xs font-semibold disabled:opacity-50 ${
+                  p.published ? "border-rose-200 text-rose-700 hover:bg-rose-50" : "border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                }`}
+              >
+                {p.published ? "Suspend" : "Reactivate"}
+              </button>
             </div>
           </div>
         ))}
@@ -368,48 +564,75 @@ function ProvidersView() {
 }
 
 function VerificationView() {
-  const [rows, setRows] = useState([
-    { id: "v1", name: "Chidera Obi", type: "ID + Selfie", submitted: "12 hrs ago", risk: "Low", status: "Pending" as "Pending" | "Approved" | "Rejected" },
-    { id: "v2", name: "Bright Osas", type: "Business permit", submitted: "1 day ago", risk: "Medium", status: "Pending" as "Pending" | "Approved" | "Rejected" },
-    { id: "v3", name: "Kemi Adeoye", type: "ID + Address", submitted: "2 days ago", risk: "Low", status: "Pending" as "Pending" | "Approved" | "Rejected" },
-    { id: "v4", name: "Ifeanyi N.", type: "Background check", submitted: "3 days ago", risk: "High", status: "Pending" as "Pending" | "Approved" | "Rejected" },
-  ]);
-  function decide(id: string, approved: boolean) {
-    setRows((all) => all.map((r) => (r.id === id ? { ...r, status: approved ? "Approved" : "Rejected" } : r)));
+  const [rows, setRows] = useState<{ id: string; name: string; cat: string; joined: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const { data } = await supabase
+        .from("provider_profiles")
+        .select("id, business_name, created_at, categories(name)")
+        .eq("verified", false)
+        .order("created_at");
+      if (!active) return;
+      setRows(
+        ((data as any[]) ?? []).map((r) => ({
+          id: r.id,
+          name: r.business_name,
+          cat: r.categories?.name ?? "—",
+          joined: new Date(r.created_at).toLocaleDateString("en-NG", { month: "short", day: "numeric" }),
+        }))
+      );
+      setLoading(false);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function approve(id: string) {
+    setBusyId(id);
+    const { error } = await supabase.from("provider_profiles").update({ verified: true }).eq("id", id);
+    setBusyId(null);
+    if (!error) setRows((all) => all.filter((r) => r.id !== id));
   }
+
   return (
-    <Section title="Verification queue" subtitle="Approve or reject identity and business verifications.">
+    <Section title="Verification queue" subtitle="Providers waiting on a verified badge.">
       <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="w-full min-w-[560px] text-sm">
           <thead className="border-b border-border text-left text-[11px] uppercase text-muted-foreground">
             <tr>
-              <th className="p-3">Provider</th><th className="p-3">Type</th><th className="p-3">Submitted</th><th className="p-3">Risk</th><th className="p-3">Status</th><th className="p-3 text-right">Actions</th>
+              <th className="p-3">Provider</th><th className="p-3">Category</th><th className="p-3">Joined</th><th className="p-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-b border-border/60 last:border-0">
-                <td className="p-3 font-semibold">{r.name}</td>
-                <td className="p-3">{r.type}</td>
-                <td className="p-3 text-muted-foreground">{r.submitted}</td>
-                <td className="p-3">
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${r.risk === "High" ? "bg-rose-100 text-rose-700" : r.risk === "Medium" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>{r.risk}</span>
-                </td>
-                <td className="p-3"><StatusPill status={r.status} /></td>
-                <td className="p-3">
-                  <div className="flex justify-end gap-1">
-                    {r.status === "Pending" ? (
-                      <>
-                        <button onClick={() => decide(r.id, true)} className="rounded-full bg-emerald-600 px-3 py-1 text-[11px] font-semibold text-white hover:opacity-90">Approve</button>
-                        <button onClick={() => decide(r.id, false)} className="rounded-full border border-border px-3 py-1 text-[11px] font-semibold hover:bg-muted">Reject</button>
-                      </>
-                    ) : (
-                      <span className="text-[11px] text-muted-foreground">Decided</span>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {loading && <tr><td colSpan={4} className="p-6 text-center text-xs text-muted-foreground">Loading…</td></tr>}
+            {!loading && rows.length === 0 && (
+              <tr><td colSpan={4} className="p-6 text-center text-xs text-muted-foreground">Nothing pending — everyone's verified.</td></tr>
+            )}
+            {!loading &&
+              rows.map((r) => (
+                <tr key={r.id} className="border-b border-border/60 last:border-0">
+                  <td className="p-3 font-semibold">{r.name}</td>
+                  <td className="p-3">{r.cat}</td>
+                  <td className="p-3 text-muted-foreground">{r.joined}</td>
+                  <td className="p-3">
+                    <div className="flex justify-end gap-1">
+                      <button
+                        onClick={() => approve(r.id)}
+                        disabled={busyId === r.id}
+                        className="rounded-full bg-emerald-600 px-3 py-1 text-[11px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                      >
+                        Mark verified
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </div>
@@ -417,123 +640,168 @@ function VerificationView() {
   );
 }
 
+type ServiceRow = { id: string; title: string; by: string; price: number; active: boolean };
+
 function ListingsView() {
-  const rows = [
-    { id: "l1", title: "Same-day gele styling", by: "Adaeze O.", flags: 0, status: "Live" },
-    { id: "l2", title: "Emergency electrician (24h)", by: "James E.", flags: 2, status: "Flagged" },
-    { id: "l3", title: "Weekend private chef", by: "Chef Bola", flags: 0, status: "Live" },
-    { id: "l4", title: "Deep home cleaning", by: "Zainab A.", flags: 1, status: "Flagged" },
-  ];
+  const [rows, setRows] = useState<ServiceRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const { data } = await supabase
+        .from("services")
+        .select("id, title, price, active, provider_profiles(business_name)")
+        .order("created_at", { ascending: false });
+      if (!active) return;
+      setRows(
+        ((data as any[]) ?? []).map((s) => ({
+          id: s.id,
+          title: s.title,
+          by: s.provider_profiles?.business_name ?? "—",
+          price: Number(s.price),
+          active: s.active,
+        }))
+      );
+      setLoading(false);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function toggle(id: string, active: boolean) {
+    setBusyId(id);
+    const { error } = await supabase.from("services").update({ active: !active }).eq("id", id);
+    setBusyId(null);
+    if (!error) setRows((all) => all.map((r) => (r.id === id ? { ...r, active: !active } : r)));
+  }
+
   return (
-    <Section title="Listings" subtitle="Auto-flagged and manually reported listings.">
+    <Section title="Listings" subtitle="Every service listed across all providers.">
       <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
         <table className="w-full min-w-[600px] text-sm">
           <thead className="border-b border-border text-left text-[11px] uppercase text-muted-foreground">
-            <tr><th className="p-3">Listing</th><th className="p-3">Provider</th><th className="p-3">Flags</th><th className="p-3">Status</th><th className="p-3 text-right">Actions</th></tr>
+            <tr><th className="p-3">Listing</th><th className="p-3">Provider</th><th className="p-3">Price</th><th className="p-3">Status</th><th className="p-3 text-right">Actions</th></tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-b border-border/60 last:border-0">
-                <td className="p-3 font-semibold">{r.title}</td>
-                <td className="p-3">{r.by}</td>
-                <td className="p-3">{r.flags}</td>
-                <td className="p-3"><StatusPill status={r.status === "Flagged" ? "Pending" : "Active"} /></td>
-                <td className="p-3">
-                  <div className="flex justify-end gap-1">
-                    <button className="rounded-full border border-border px-3 py-1 text-[11px] font-semibold hover:bg-muted">Approve</button>
-                    <button className="rounded-full border border-rose-200 px-3 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50">Take down</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {loading && <tr><td colSpan={5} className="p-6 text-center text-xs text-muted-foreground">Loading…</td></tr>}
+            {!loading && rows.length === 0 && (
+              <tr><td colSpan={5} className="p-6 text-center text-xs text-muted-foreground">No listings yet.</td></tr>
+            )}
+            {!loading &&
+              rows.map((r) => (
+                <tr key={r.id} className="border-b border-border/60 last:border-0">
+                  <td className="p-3 font-semibold">{r.title}</td>
+                  <td className="p-3">{r.by}</td>
+                  <td className="p-3">₦{r.price.toLocaleString()}</td>
+                  <td className="p-3"><StatusPill status={r.active ? "Active" : "Suspended"} /></td>
+                  <td className="p-3">
+                    <div className="flex justify-end gap-1">
+                      <button
+                        onClick={() => toggle(r.id, r.active)}
+                        disabled={busyId === r.id}
+                        className={`rounded-full border px-3 py-1 text-[11px] font-semibold disabled:opacity-50 ${r.active ? "border-rose-200 text-rose-700 hover:bg-rose-50" : "border-emerald-200 text-emerald-700 hover:bg-emerald-50"}`}
+                      >
+                        {r.active ? "Take down" : "Restore"}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
           </tbody>
         </table>
+      </div>
+    </Section>
+  );
+}
+
+function NotBuiltYet({ title, subtitle, note }: { title: string; subtitle: string; note: string }) {
+  return (
+    <Section title={title} subtitle={subtitle}>
+      <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
+        <AlertTriangle className="mx-auto h-6 w-6 text-muted-foreground" />
+        <p className="mt-3 text-sm font-semibold text-foreground">Not built yet</p>
+        <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">{note}</p>
       </div>
     </Section>
   );
 }
 
 function DisputesView() {
-  const rows = [
-    { id: "d1", ref: "BK-8821", parties: "Ada A. vs Adaeze O.", amount: 45000, reason: "Provider late by 40 min", status: "Open", age: "2 hr" },
-    { id: "d2", ref: "BK-8756", parties: "Ngozi E. vs Chef Bola", amount: 120000, reason: "Dispute on menu delivered", status: "Escalated", age: "1 day" },
-    { id: "d3", ref: "BK-8629", parties: "Tobi B. vs Zainab A.", amount: 35000, reason: "No-show claim", status: "Open", age: "4 hr" },
-  ];
   return (
-    <Section title="Disputes" subtitle="Resolve escrow disputes between customers and providers.">
-      <ul className="space-y-3">
-        {rows.map((d) => (
-          <li key={d.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-mono text-muted-foreground">{d.ref}</p>
-                <p className="text-sm font-semibold">{d.parties}</p>
-                <p className="text-xs text-muted-foreground">{d.reason}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-semibold">₦{d.amount.toLocaleString()}</p>
-                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${d.status === "Escalated" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>
-                  <AlertTriangle className="h-3 w-3" /> {d.status} · {d.age}
-                </span>
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button className="rounded-full bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground hover:opacity-90">Refund customer</button>
-              <button className="rounded-full border border-border px-3 py-1 text-[11px] font-semibold hover:bg-muted">Release to provider</button>
-              <button className="rounded-full border border-border px-3 py-1 text-[11px] font-semibold hover:bg-muted">Partial split</button>
-              <button className="rounded-full border border-border px-3 py-1 text-[11px] font-semibold hover:bg-muted">Request evidence</button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </Section>
+    <NotBuiltYet
+      title="Disputes"
+      subtitle="Resolve escrow disputes between customers and providers."
+      note="There's no dispute-filing flow yet — customers and providers can't raise a dispute from the app, so there's nothing real to show here. This needs its own data model before it can go live."
+    />
   );
 }
 
 function PayoutsView() {
-  const [rows, setRows] = useState([
-    { id: "w1", who: "Adaeze O.", bank: "GTBank •• 4421", amount: 180000, status: "Pending" as "Pending" | "Approved" | "Rejected" },
-    { id: "w2", who: "Chef Bola", bank: "Access •• 9012", amount: 240000, status: "Pending" as "Pending" | "Approved" | "Rejected" },
-    { id: "w3", who: "James E.", bank: "Zenith •• 3388", amount: 95000, status: "Pending" as "Pending" | "Approved" | "Rejected" },
-    { id: "w4", who: "Zainab A.", bank: "UBA •• 7712", amount: 60000, status: "Pending" as "Pending" | "Approved" | "Rejected" },
-  ]);
-  function decide(id: string, approve: boolean) {
-    setRows((all) => all.map((r) => (r.id === id ? { ...r, status: approve ? "Approved" : "Rejected" } : r)));
-  }
-  const pending = rows.filter((r) => r.status === "Pending");
-  const total = pending.reduce((a, b) => a + b.amount, 0);
+  const [rows, setRows] = useState<
+    { id: string; who: string; amount: number; payoutAmount: number; status: string; when: string }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const { data } = await supabase
+        .from("bookings")
+        .select("id, amount, payout_amount, payment_status, updated_at, provider_profiles(business_name)")
+        .in("payment_status", ["Paid", "Released"])
+        .order("updated_at", { ascending: false });
+      if (!active) return;
+      setRows(
+        ((data as any[]) ?? []).map((b) => ({
+          id: b.id,
+          who: b.provider_profiles?.business_name ?? "—",
+          amount: Number(b.amount),
+          payoutAmount: Number(b.payout_amount),
+          status: b.payment_status,
+          when: new Date(b.updated_at).toLocaleDateString("en-NG", { month: "short", day: "numeric" }),
+        }))
+      );
+      setLoading(false);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const pending = rows.filter((r) => r.status === "Paid");
+  const total = pending.reduce((a, b) => a + b.payoutAmount, 0);
+
   return (
-    <Section
-      title="Payouts"
-      subtitle={`${pending.length} pending · ₦${total.toLocaleString()}`}
-      right={<button className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90">Approve all</button>}
-    >
+    <Section title="Payouts" subtitle={loading ? "Loading…" : `${pending.length} held in escrow · ₦${total.toLocaleString()}`}>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Payout release is triggered by the provider from their dashboard once a job is marked complete — this is a
+        read-only view for oversight.
+      </p>
       <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
-        <table className="w-full min-w-[640px] text-sm">
+        <table className="w-full min-w-[560px] text-sm">
           <thead className="border-b border-border text-left text-[11px] uppercase text-muted-foreground">
-            <tr><th className="p-3">Provider</th><th className="p-3">Destination</th><th className="p-3">Amount</th><th className="p-3">Status</th><th className="p-3 text-right">Actions</th></tr>
+            <tr><th className="p-3">Provider</th><th className="p-3">Booking amount</th><th className="p-3">Payout (after fee)</th><th className="p-3">Status</th><th className="p-3">Updated</th></tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-b border-border/60 last:border-0">
-                <td className="p-3 font-semibold">{r.who}</td>
-                <td className="p-3 text-muted-foreground">{r.bank}</td>
-                <td className="p-3">₦{r.amount.toLocaleString()}</td>
-                <td className="p-3"><StatusPill status={r.status} /></td>
-                <td className="p-3">
-                  <div className="flex justify-end gap-1">
-                    {r.status === "Pending" ? (
-                      <>
-                        <button onClick={() => decide(r.id, true)} className="rounded-full bg-emerald-600 px-3 py-1 text-[11px] font-semibold text-white hover:opacity-90">Approve</button>
-                        <button onClick={() => decide(r.id, false)} className="rounded-full border border-border px-3 py-1 text-[11px] font-semibold hover:bg-muted">Reject</button>
-                      </>
-                    ) : (
-                      <span className="text-[11px] text-muted-foreground">Decided</span>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {loading && <tr><td colSpan={5} className="p-6 text-center text-xs text-muted-foreground">Loading…</td></tr>}
+            {!loading && rows.length === 0 && (
+              <tr><td colSpan={5} className="p-6 text-center text-xs text-muted-foreground">No paid bookings yet.</td></tr>
+            )}
+            {!loading &&
+              rows.map((r) => (
+                <tr key={r.id} className="border-b border-border/60 last:border-0">
+                  <td className="p-3 font-semibold">{r.who}</td>
+                  <td className="p-3">₦{r.amount.toLocaleString()}</td>
+                  <td className="p-3">₦{r.payoutAmount.toLocaleString()}</td>
+                  <td className="p-3"><StatusPill status={r.status === "Released" ? "Active" : "Pending"} /></td>
+                  <td className="p-3 text-muted-foreground">{r.when}</td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </div>
@@ -542,135 +810,134 @@ function PayoutsView() {
 }
 
 function CategoriesView() {
-  const [cats, setCats] = useState([
-    { name: "Beauty & wellness", count: 412 },
-    { name: "Home services", count: 386 },
-    { name: "Events & catering", count: 274 },
-    { name: "Automotive", count: 108 },
-    { name: "Tutoring", count: 96 },
-    { name: "Health & fitness", count: 133 },
-  ]);
+  const [cats, setCats] = useState<{ id: string; name: string; count: number }[]>([]);
+  const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const [{ data: categories }, { data: providers }] = await Promise.all([
+        supabase.from("categories").select("id, name").order("sort_order"),
+        supabase.from("provider_profiles").select("category_id").eq("published", true),
+      ]);
+      if (!active) return;
+      const tally: Record<string, number> = {};
+      for (const p of providers ?? []) if (p.category_id) tally[p.category_id] = (tally[p.category_id] ?? 0) + 1;
+      setCats((categories ?? []).map((c) => ({ id: c.id, name: c.name, count: tally[c.id] ?? 0 })));
+      setLoading(false);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function addCategory() {
+    if (!draft.trim()) return;
+    setAdding(true);
+    setError(null);
+    const slug = draft.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    const { data, error: insertError } = await supabase
+      .from("categories")
+      .insert({ name: draft.trim(), slug, sort_order: cats.length + 1 })
+      .select("id, name")
+      .single();
+    setAdding(false);
+    if (insertError || !data) {
+      setError(insertError?.message ?? "Could not add category");
+      return;
+    }
+    setCats((prev) => [...prev, { id: data.id, name: data.name, count: 0 }]);
+    setDraft("");
+  }
+
+  async function removeCategory(id: string) {
+    const { error: deleteError } = await supabase.from("categories").delete().eq("id", id);
+    if (!deleteError) setCats((prev) => prev.filter((c) => c.id !== id));
+  }
+
   return (
     <Section title="Categories" subtitle="Add, rename, or archive service categories.">
       <div className="mb-3 flex gap-2">
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="New category name" className="flex-1 rounded-full border border-border bg-card px-4 py-2 text-sm outline-none focus:border-primary" />
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="New category name"
+          className="flex-1 rounded-full border border-border bg-card px-4 py-2 text-sm outline-none focus:border-primary"
+        />
         <button
-          onClick={() => { if (draft.trim()) { setCats([...cats, { name: draft.trim(), count: 0 }]); setDraft(""); } }}
-          className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90"
-        >Add</button>
+          onClick={addCategory}
+          disabled={adding}
+          className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+        >
+          {adding ? "Adding…" : "Add"}
+        </button>
       </div>
+      {error && <p className="mb-3 text-sm text-destructive">{error}</p>}
+      {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
       <ul className="grid gap-2 sm:grid-cols-2">
-        {cats.map((c, i) => (
-          <li key={i} className="flex items-center justify-between rounded-xl border border-border bg-card p-3 shadow-sm">
-            <div><p className="font-medium">{c.name}</p><p className="text-[11px] text-muted-foreground">{c.count} listings</p></div>
-            <button onClick={() => setCats(cats.filter((_, k) => k !== i))} className="grid h-7 w-7 place-items-center rounded-full border border-border text-muted-foreground hover:bg-muted"><Trash2 className="h-3.5 w-3.5" /></button>
-          </li>
-        ))}
+        {!loading &&
+          cats.map((c) => (
+            <li key={c.id} className="flex items-center justify-between rounded-xl border border-border bg-card p-3 shadow-sm">
+              <div><p className="font-medium">{c.name}</p><p className="text-[11px] text-muted-foreground">{c.count} providers</p></div>
+              <button onClick={() => removeCategory(c.id)} className="grid h-7 w-7 place-items-center rounded-full border border-border text-muted-foreground hover:bg-muted"><Trash2 className="h-3.5 w-3.5" /></button>
+            </li>
+          ))}
       </ul>
     </Section>
   );
 }
 
 function ReportsView() {
-  const reports = [
-    { name: "Monthly GMV report — Sep 2026", size: "1.2 MB" },
-    { name: "Verification throughput — Sep 2026", size: "312 KB" },
-    { name: "Dispute resolution SLA — Q3 2026", size: "890 KB" },
-    { name: "Fraud detection summary — Sep 2026", size: "540 KB" },
-  ];
   return (
-    <Section title="Reports" subtitle="Downloadable operational and financial reports.">
-      <ul className="grid gap-2 sm:grid-cols-2">
-        {reports.map((r, i) => (
-          <li key={i} className="flex items-center justify-between rounded-2xl border border-border bg-card p-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <span className="grid h-9 w-9 place-items-center rounded-xl bg-muted"><FileText className="h-4 w-4" /></span>
-              <div><p className="text-sm font-semibold">{r.name}</p><p className="text-[11px] text-muted-foreground">CSV · {r.size}</p></div>
-            </div>
-            <button className="rounded-full border border-border px-3 py-1 text-xs font-semibold hover:bg-muted">Download</button>
-          </li>
-        ))}
-      </ul>
-    </Section>
+    <NotBuiltYet
+      title="Reports"
+      subtitle="Downloadable operational and financial reports."
+      note="No report generation exists yet — this would need scheduled exports built and stored somewhere real before there's anything to download."
+    />
   );
 }
 
 function FraudView() {
-  const rows = [
-    { who: "u_984 · new account", signal: "Payment velocity — 8 chargebacks in 24h", risk: "High" },
-    { who: "u_812 · Tobi B.", signal: "IP + device shared with suspended account", risk: "Medium" },
-    { who: "u_774 · Chidera O.", signal: "Multiple accounts from same device", risk: "Medium" },
-    { who: "listing l_2201", signal: "Off-platform payment terms detected", risk: "Low" },
-  ];
   return (
-    <Section title="Fraud detection" subtitle="Auto-detected risks. Review and take action.">
-      <ul className="space-y-2">
-        {rows.map((r, i) => (
-          <li key={i} className="flex items-center justify-between rounded-2xl border border-border bg-card p-4 shadow-sm">
-            <div>
-              <p className="text-sm font-semibold">{r.who}</p>
-              <p className="text-xs text-muted-foreground">{r.signal}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${r.risk === "High" ? "bg-rose-100 text-rose-700" : r.risk === "Medium" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>{r.risk}</span>
-              <button className="rounded-full border border-border px-3 py-1 text-[11px] font-semibold hover:bg-muted">Investigate</button>
-              <button className="rounded-full border border-rose-200 px-3 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50">Suspend</button>
-              <button title="Dismiss" className="grid h-7 w-7 place-items-center rounded-full border border-border text-muted-foreground hover:bg-muted"><X className="h-3.5 w-3.5" /></button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </Section>
+    <NotBuiltYet
+      title="Fraud detection"
+      subtitle="Auto-detected risk signals."
+      note="There's no fraud-detection logic running yet (device fingerprinting, velocity checks, etc.). This needs real signal collection before it can flag anything."
+    />
   );
 }
 
 function SettingsView() {
-  const [fee, setFee] = useState(12.5);
-  const [holdDays, setHoldDays] = useState(2);
-  const [autoApprove, setAutoApprove] = useState(false);
   return (
-    <Section title="Platform settings" subtitle="Global controls for fees, escrow, and trust policies.">
+    <Section title="Platform settings" subtitle="Current fixed rules — not yet configurable from here.">
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-          <h2 className="text-sm font-semibold">Marketplace fee</h2>
-          <p className="text-xs text-muted-foreground">Platform take rate applied to every booking.</p>
-          <div className="mt-4 flex items-center gap-3">
-            <input type="range" min={5} max={25} step={0.5} value={fee} onChange={(e) => setFee(Number(e.target.value))} className="flex-1" />
-            <span className="w-16 rounded-lg border border-border bg-muted px-2 py-1 text-right text-sm font-semibold">{fee}%</span>
-          </div>
+          <h2 className="text-sm font-semibold">Marketplace commission</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Fixed at <span className="font-semibold text-foreground">5%</span>, deducted from the pro's payout when
+            you release escrow. Hardcoded in the Supabase Edge Functions (<code>verify-payment</code>,{" "}
+            <code>paystack-webhook</code>) — changing it means editing those functions, not a setting here yet.
+          </p>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-          <h2 className="text-sm font-semibold">Escrow hold</h2>
-          <p className="text-xs text-muted-foreground">Days funds are held after job completion before auto-release.</p>
-          <div className="mt-4 flex items-center gap-3">
-            <input type="range" min={0} max={7} step={1} value={holdDays} onChange={(e) => setHoldDays(Number(e.target.value))} className="flex-1" />
-            <span className="w-20 rounded-lg border border-border bg-muted px-2 py-1 text-right text-sm font-semibold">{holdDays} day{holdDays === 1 ? "" : "s"}</span>
-          </div>
+          <h2 className="text-sm font-semibold">Escrow release</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            There's no auto-release timer. A provider must mark a job <span className="font-semibold">Completed</span> and
+            press <span className="font-semibold">Release payment</span> themselves — funds don't move automatically.
+          </p>
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold">Auto-approve low-risk verifications</h2>
-              <p className="text-xs text-muted-foreground">Providers with clean device + email domain skip manual review.</p>
-            </div>
-            <button
-              role="switch"
-              aria-checked={autoApprove}
-              onClick={() => setAutoApprove((v) => !v)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full ${autoApprove ? "bg-primary" : "bg-muted"}`}
-            >
-              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${autoApprove ? "translate-x-5" : "translate-x-0.5"}`} />
-            </button>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-          <h2 className="text-sm font-semibold">Support & escalation</h2>
-          <p className="text-xs text-muted-foreground">Disputes escalated beyond 24h are auto-routed to senior admins.</p>
-          <button className="mt-3 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90">Save changes</button>
+          <h2 className="text-sm font-semibold">Provider verification</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Fully manual — an admin marks a provider verified from the Verification queue. There's no automated
+            identity/document check yet.
+          </p>
         </div>
       </div>
     </Section>
