@@ -288,7 +288,7 @@ function Categories() {
           ))}
         {!loading &&
           categories.map(({ id, slug, name, icon }, i) => {
-            const Icon = CATEGORY_ICONS[icon] ?? Sparkles;
+            const Icon = CATEGORY_ICONS[icon ?? ""] ?? Sparkles;
             const count = counts[id] ?? 0;
             return (
               <Link
