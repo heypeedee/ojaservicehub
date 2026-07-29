@@ -155,7 +155,7 @@ function ProDashboard() {
         (svcRows ?? []).map((s) => ({
           id: s.id,
           title: s.title,
-          category: s.category,
+          category: s.category ?? "",
           price: Number(s.price),
           duration: s.duration ?? "—",
           active: s.active,
