@@ -17,9 +17,12 @@ export type Database = {
       bookings: {
         Row: {
           address: string | null
-          buyer_id: string
+          amount: number
+          buyer_id: string | null
           created_at: string
+          customer_id: string | null
           id: string
+          location: string | null
           notes: string | null
           photo_urls: string[]
           platform_fee_ngn: number
@@ -27,14 +30,18 @@ export type Database = {
           provider_id: string
           scheduled_at: string | null
           service_id: string | null
+          service_title: string | null
           status: Database["public"]["Enums"]["booking_status"]
           updated_at: string
         }
         Insert: {
           address?: string | null
-          buyer_id: string
+          amount?: number
+          buyer_id?: string | null
           created_at?: string
+          customer_id?: string | null
           id?: string
+          location?: string | null
           notes?: string | null
           photo_urls?: string[]
           platform_fee_ngn?: number
@@ -42,14 +49,18 @@ export type Database = {
           provider_id: string
           scheduled_at?: string | null
           service_id?: string | null
+          service_title?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
           updated_at?: string
         }
         Update: {
           address?: string | null
-          buyer_id?: string
+          amount?: number
+          buyer_id?: string | null
           created_at?: string
+          customer_id?: string | null
           id?: string
+          location?: string | null
           notes?: string | null
           photo_urls?: string[]
           platform_fee_ngn?: number
@@ -57,6 +68,7 @@ export type Database = {
           provider_id?: string
           scheduled_at?: string | null
           service_id?: string | null
+          service_title?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
           updated_at?: string
         }
@@ -272,6 +284,68 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_profiles: {
+        Row: {
+          area: string | null
+          business_name: string
+          category_id: string | null
+          cover_image_url: string | null
+          created_at: string
+          id: string
+          phone: string | null
+          price_from: number | null
+          published: boolean
+          rating: number
+          review_count: number
+          tagline: string | null
+          tier: string
+          updated_at: string
+          verified: boolean
+        }
+        Insert: {
+          area?: string | null
+          business_name?: string
+          category_id?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          id: string
+          phone?: string | null
+          price_from?: number | null
+          published?: boolean
+          rating?: number
+          review_count?: number
+          tagline?: string | null
+          tier?: string
+          updated_at?: string
+          verified?: boolean
+        }
+        Update: {
+          area?: string | null
+          business_name?: string
+          category_id?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          id?: string
+          phone?: string | null
+          price_from?: number | null
+          published?: boolean
+          rating?: number
+          review_count?: number
+          tagline?: string | null
+          tier?: string
+          updated_at?: string
+          verified?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_profiles_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reviews: {
         Row: {
           body: string | null
@@ -318,39 +392,51 @@ export type Database = {
       }
       services: {
         Row: {
+          active: boolean
+          category: string | null
           category_id: string | null
           created_at: string
           description: string | null
+          duration: string | null
           duration_minutes: number | null
           id: string
           image_url: string | null
           is_active: boolean
+          price: number
           price_ngn: number
           provider_id: string
           title: string
           updated_at: string
         }
         Insert: {
+          active?: boolean
+          category?: string | null
           category_id?: string | null
           created_at?: string
           description?: string | null
+          duration?: string | null
           duration_minutes?: number | null
           id?: string
           image_url?: string | null
           is_active?: boolean
+          price?: number
           price_ngn?: number
           provider_id: string
           title: string
           updated_at?: string
         }
         Update: {
+          active?: boolean
+          category?: string | null
           category_id?: string | null
           created_at?: string
           description?: string | null
+          duration?: string | null
           duration_minutes?: number | null
           id?: string
           image_url?: string | null
           is_active?: boolean
+          price?: number
           price_ngn?: number
           provider_id?: string
           title?: string
