@@ -41,7 +41,7 @@ const CATEGORY_TINTS = [
   "bg-gold/15 text-charcoal",
 ];
 
-type CategoryRow = { id: string; slug: string; name: string; icon: string };
+type CategoryRow = { id: string; slug: string; name: string; icon: string | null };
 
 type ProviderRow = {
   id: string;
