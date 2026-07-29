@@ -41,7 +41,7 @@ const CATEGORY_TINTS = [
   "bg-gold/15 text-charcoal",
 ];
 
-type CategoryRow = { id: string; slug: string; name: string; icon: string };
+type CategoryRow = { id: string; slug: string; name: string; icon: string | null };
 
 type ProviderRow = {
   id: string;
@@ -288,7 +288,7 @@ function Categories() {
           ))}
         {!loading &&
           categories.map(({ id, slug, name, icon }, i) => {
-            const Icon = CATEGORY_ICONS[icon] ?? Sparkles;
+            const Icon = CATEGORY_ICONS[icon ?? ""] ?? Sparkles;
             const count = counts[id] ?? 0;
             return (
               <Link
