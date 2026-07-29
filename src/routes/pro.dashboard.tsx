@@ -201,7 +201,7 @@ function ProDashboard() {
         .select()
         .single();
       if (!error && data) {
-        setServices((prev) => [...prev, { id: data.id, title: data.title, category: data.category, price: Number(data.price), duration: data.duration ?? "—", active: data.active }]);
+        setServices((prev) => [...prev, { id: data.id, title: data.title, category: data.category ?? "", price: Number(data.price), duration: data.duration ?? "—", active: data.active }]);
       }
     } else {
       const { error } = await supabase
