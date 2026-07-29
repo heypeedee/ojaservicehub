@@ -38,7 +38,7 @@ export const Route = createFileRoute("/pro/dashboard")({
       {
         name: "description",
         content:
-          "Run your Ọjà shop: manage your profile, services, bookings, earnings, HubPoints withdrawals, customer chats and business insights in one dedicated app.",
+          "Run your Ọjà shop: manage your profile, services, bookings, escrow payouts, customer chats and business insights in one dedicated app.",
       },
       { property: "og:title", content: "Business dashboard · Ọjà" },
       { property: "og:description", content: "Dedicated market owner control centre on Ọjà." },
@@ -75,6 +75,9 @@ type Booking = {
   when: string;
   amount: number;
   status: "New" | "Confirmed" | "In progress" | "Completed" | "Cancelled";
+  paymentStatus: "Unpaid" | "Paid" | "Released" | "Refunded";
+  payoutAmount: number;
+  platformFee: number;
 };
 
 type CustomerMsg = {
@@ -91,6 +94,9 @@ type BookingRow = {
   service_title: string;
   amount: number;
   status: string;
+  payment_status: string;
+  payout_amount: number;
+  platform_fee: number;
   scheduled_at: string | null;
   location: string | null;
   customer_id: string;
@@ -120,7 +126,6 @@ function ProDashboard() {
   const [messages, setMessages] = useState<CustomerMsg[]>(initialMessages);
   const [editService, setEditService] = useState<Service | null>(null);
   const [replyTarget, setReplyTarget] = useState<CustomerMsg | null>(null);
-  const [showWithdraw, setShowWithdraw] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -141,7 +146,7 @@ function ProDashboard() {
         supabase.from("services").select("*").eq("provider_id", uid).order("created_at"),
         supabase
           .from("bookings")
-          .select("id, service_title, amount, status, scheduled_at, location, customer_id, profiles(display_name, full_name)")
+          .select("id, service_title, amount, status, payment_status, payout_amount, platform_fee, scheduled_at, location, customer_id, profiles(display_name, full_name)")
           .eq("provider_id", uid)
           .order("created_at", { ascending: false }),
       ]);
@@ -169,6 +174,9 @@ function ProDashboard() {
           when: b.scheduled_at ? new Date(b.scheduled_at).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" }) : "—",
           amount: Number(b.amount),
           status: b.status as Booking["status"],
+          paymentStatus: b.payment_status as Booking["paymentStatus"],
+          payoutAmount: Number(b.payout_amount),
+          platformFee: Number(b.platform_fee),
         }))
       );
       setLoadingData(false);
@@ -179,8 +187,8 @@ function ProDashboard() {
     };
   }, []);
 
-  const completedRevenue = bookings.filter((b) => b.status === "Completed").reduce((s, b) => s + b.amount, 0);
-  const pendingRevenue = bookings.filter((b) => b.status !== "Completed" && b.status !== "Cancelled").reduce((s, b) => s + b.amount, 0);
+  const completedRevenue = bookings.filter((b) => b.paymentStatus === "Released").reduce((s, b) => s + b.payoutAmount, 0);
+  const pendingRevenue = bookings.filter((b) => b.paymentStatus === "Paid").reduce((s, b) => s + b.payoutAmount, 0);
   const activeServices = services.filter((s) => s.active).length;
   const unread = messages.filter((m) => m.unread).length;
 
@@ -240,6 +248,26 @@ function ProDashboard() {
     if (!error) setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, status } : b)));
   }
 
+  const [releasingId, setReleasingId] = useState<string | null>(null);
+  const [releaseError, setReleaseError] = useState<string | null>(null);
+
+  async function releasePayment(id: string) {
+    setReleasingId(id);
+    setReleaseError(null);
+    const { data: sessionData } = await supabase.auth.getSession();
+    const { data, error } = await supabase.functions.invoke("release-payment", {
+      body: { bookingId: id },
+      headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
+    });
+    setReleasingId(null);
+    const errMsg = (data as any)?.error;
+    if (error || errMsg) {
+      setReleaseError(errMsg || "Could not release payment. Try again.");
+      return;
+    }
+    setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, paymentStatus: "Released" } : b)));
+  }
+
   const markRead = (id: string) => setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, unread: false } : m)));
 
   if (loadingData) {
@@ -267,12 +295,12 @@ function ProDashboard() {
         <main className="min-w-0">
           {section === "overview" && (
             <Overview
+              shopName={shopName}
               activeServices={activeServices}
               completedRevenue={completedRevenue}
               pendingRevenue={pendingRevenue}
               bookings={bookings}
               messages={messages}
-              onWithdraw={() => setShowWithdraw(true)}
               onSection={setSection}
             />
           )}
@@ -295,12 +323,21 @@ function ProDashboard() {
               }
             />
           )}
-          {section === "orders" && <OrdersPanel bookings={bookings} onStatus={updateBookingStatus} />}
+          {section === "orders" && (
+            <OrdersPanel
+              bookings={bookings}
+              onStatus={updateBookingStatus}
+              onRelease={releasePayment}
+              releasingId={releasingId}
+              releaseError={releaseError}
+            />
+          )}
           {section === "earnings" && (
             <EarningsPanel
               completedRevenue={completedRevenue}
               pendingRevenue={pendingRevenue}
-              onWithdraw={() => setShowWithdraw(true)}
+              bookings={bookings}
+              onSection={setSection}
             />
           )}
           {section === "customers" && (
@@ -313,7 +350,6 @@ function ProDashboard() {
 
       {editService && <ServiceEditor service={editService} onClose={() => setEditService(null)} onSave={saveService} />}
       {replyTarget && <ReplyModal message={replyTarget} onClose={() => setReplyTarget(null)} />}
-      {showWithdraw && <WithdrawModal available={completedRevenue} onClose={() => setShowWithdraw(false)} />}
     </div>
   );
 }
@@ -426,28 +462,28 @@ function Sidebar({
 /* ---------- Overview ---------- */
 
 function Overview({
+  shopName,
   activeServices,
   completedRevenue,
   pendingRevenue,
   bookings,
   messages,
-  onWithdraw,
   onSection,
 }: {
+  shopName: string;
   activeServices: number;
   completedRevenue: number;
   pendingRevenue: number;
   bookings: Booking[];
   messages: CustomerMsg[];
-  onWithdraw: () => void;
   onSection: (s: Section) => void;
 }) {
   const upcoming = bookings.filter((b) => b.status === "Confirmed" || b.status === "New" || b.status === "In progress").slice(0, 4);
   const kpis = [
-    { label: "This month revenue", value: formatNaira(completedRevenue), sub: "+18% MoM", icon: TrendingUp, tint: "bg-brand-soft text-brand" },
+    { label: "Paid out to you", value: formatNaira(completedRevenue), sub: "All time", icon: TrendingUp, tint: "bg-brand-soft text-brand" },
     { label: "Pending payout", value: formatNaira(pendingRevenue), sub: "Escrow held", icon: Wallet, tint: "bg-orange/10 text-orange" },
     { label: "Active services", value: activeServices, sub: "Live on your shop", icon: Package, tint: "bg-gold/15 text-charcoal" },
-    { label: "HubPoints", value: "1,240 pts", sub: "≈ ₦12,400 redeemable", icon: Coins, tint: "bg-brand-soft text-brand" },
+    { label: "Total bookings", value: bookings.length, sub: "All time", icon: Coins, tint: "bg-brand-soft text-brand" },
   ];
 
   return (
@@ -457,15 +493,15 @@ function Overview({
           <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-[11px] font-semibold text-brand">
             <Store className="h-3.5 w-3.5" /> Market owner
           </span>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Good morning, Adaeze.</h1>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{shopName}</h1>
           <p className="mt-1 text-sm text-muted-foreground">Here's how your shop is performing today.</p>
         </div>
         <div className="flex gap-2">
           <button
-            onClick={onWithdraw}
+            onClick={() => onSection("orders")}
             className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-sm font-semibold text-background hover:opacity-90"
           >
-            <Wallet className="h-4 w-4" /> Withdraw
+            <Wallet className="h-4 w-4" /> View payouts
           </button>
           <button
             onClick={() => onSection("services")}
@@ -892,7 +928,19 @@ function ServiceEditor({ service, onClose, onSave }: { service: Service; onClose
 
 /* ---------- Orders ---------- */
 
-function OrdersPanel({ bookings, onStatus }: { bookings: Booking[]; onStatus: (id: string, s: Booking["status"]) => void }) {
+function OrdersPanel({
+  bookings,
+  onStatus,
+  onRelease,
+  releasingId,
+  releaseError,
+}: {
+  bookings: Booking[];
+  onStatus: (id: string, s: Booking["status"]) => void;
+  onRelease: (id: string) => void;
+  releasingId: string | null;
+  releaseError: string | null;
+}) {
   const [tab, setTab] = useState<Booking["status"] | "all">("all");
   const filtered = useMemo(() => (tab === "all" ? bookings : bookings.filter((b) => b.status === tab)), [tab, bookings]);
   const tabs: (Booking["status"] | "all")[] = ["all", "New", "Confirmed", "In progress", "Completed", "Cancelled"];
@@ -900,6 +948,9 @@ function OrdersPanel({ bookings, onStatus }: { bookings: Booking[]; onStatus: (i
   return (
     <div className="space-y-6">
       <PanelHeader title="Orders & bookings" desc="Accept new requests, keep customers updated, and mark jobs complete to release escrow." />
+      {releaseError && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{releaseError}</div>
+      )}
       <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
         <div className="flex flex-wrap gap-1 border-b border-border">
           {tabs.map((t) => (
@@ -922,7 +973,10 @@ function OrdersPanel({ bookings, onStatus }: { bookings: Booking[]; onStatus: (i
                 <p className="font-semibold">{b.customer}</p>
                 <p className="truncate text-xs text-muted-foreground">{b.service} · {b.when}</p>
               </div>
-              <span className="text-sm font-semibold">{formatNaira(b.amount)}</span>
+              <div className="text-right">
+                <p className="text-sm font-semibold">{formatNaira(b.amount)}</p>
+                <PaymentBadge status={b.paymentStatus} />
+              </div>
               <select
                 value={b.status}
                 onChange={(e) => onStatus(b.id, e.target.value as Booking["status"])}
@@ -932,6 +986,15 @@ function OrdersPanel({ bookings, onStatus }: { bookings: Booking[]; onStatus: (i
                   <option key={s}>{s}</option>
                 ))}
               </select>
+              {b.status === "Completed" && b.paymentStatus === "Paid" && (
+                <button
+                  onClick={() => onRelease(b.id)}
+                  disabled={releasingId === b.id}
+                  className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+                >
+                  {releasingId === b.id ? "Releasing…" : `Release ${formatNaira(b.payoutAmount)}`}
+                </button>
+              )}
               <Link to="/messages" className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold hover:border-primary/40">
                 Message
               </Link>
@@ -944,51 +1007,81 @@ function OrdersPanel({ bookings, onStatus }: { bookings: Booking[]; onStatus: (i
   );
 }
 
+function PaymentBadge({ status }: { status: Booking["paymentStatus"] }) {
+  const styles: Record<Booking["paymentStatus"], string> = {
+    Unpaid: "bg-muted text-muted-foreground",
+    Paid: "bg-gold/15 text-charcoal",
+    Released: "bg-brand-soft text-brand",
+    Refunded: "bg-destructive/10 text-destructive",
+  };
+  const labels: Record<Booking["paymentStatus"], string> = {
+    Unpaid: "Awaiting payment",
+    Paid: "Held in escrow",
+    Released: "Paid out",
+    Refunded: "Refunded",
+  };
+  return (
+    <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${styles[status]}`}>
+      {labels[status]}
+    </span>
+  );
+}
+
 /* ---------- Earnings ---------- */
 
 function EarningsPanel({
   completedRevenue,
   pendingRevenue,
-  onWithdraw,
+  bookings,
+  onSection,
 }: {
   completedRevenue: number;
   pendingRevenue: number;
-  onWithdraw: () => void;
+  bookings: Booking[];
+  onSection: (s: Section) => void;
 }) {
-  const history = [
-    { id: "t1", label: "Payout · Kuda Bank ••4421", amount: -50000, when: "22 Nov" },
-    { id: "t2", label: "Escrow released · Blessing K.", amount: 25000, when: "23 Nov" },
-    { id: "t3", label: "Escrow released · Fikayo A.", amount: 45000, when: "21 Nov" },
-    { id: "t4", label: "Tip received · Blessing K.", amount: 2000, when: "23 Nov" },
-    { id: "t5", label: "Booking · Amaka N.", amount: 45000, when: "20 Nov" },
-  ];
+  const history = bookings
+    .filter((b) => b.paymentStatus === "Paid" || b.paymentStatus === "Released")
+    .map((b) => ({
+      id: b.id,
+      label: b.paymentStatus === "Released" ? `Paid out · ${b.customer}` : `Held in escrow · ${b.customer}`,
+      amount: b.paymentStatus === "Released" ? b.payoutAmount : 0,
+      when: b.when,
+      status: b.paymentStatus,
+    }));
+
   return (
     <div className="space-y-6">
       <PanelHeader
         title="Earnings & wallet"
-        desc="Available balance, pending escrow, HubPoints and payout history."
+        desc="Available balance, pending escrow, and payout history."
         action={
-          <button onClick={onWithdraw} className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
-            <Wallet className="h-4 w-4" /> Withdraw to bank
+          <button
+            onClick={() => onSection("orders")}
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+          >
+            <Wallet className="h-4 w-4" /> Go to Orders to release
           </button>
         }
       />
-      <div className="grid gap-4 md:grid-cols-3">
-        <BalanceCard title="Available balance" value={formatNaira(completedRevenue)} hint="Ready to withdraw" gradient />
-        <BalanceCard title="Pending in escrow" value={formatNaira(pendingRevenue)} hint="Releases on completion" />
-        <BalanceCard title="HubPoints" value="1,240 pts" hint="≈ ₦12,400 · redeem for fees" tint="bg-gold/15" icon={<Coins className="h-5 w-5 text-charcoal" />} />
+      <div className="grid gap-4 md:grid-cols-2">
+        <BalanceCard title="Paid out to you" value={formatNaira(completedRevenue)} hint="All time" gradient />
+        <BalanceCard title="Pending in escrow" value={formatNaira(pendingRevenue)} hint="Releases when you mark a job complete" />
       </div>
 
       <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Transaction history</h2>
         <ul className="mt-4 divide-y divide-border">
+          {history.length === 0 && (
+            <li className="py-8 text-center text-xs text-muted-foreground">No paid bookings yet.</li>
+          )}
           {history.map((t) => (
             <li key={t.id} className="flex items-center justify-between py-3 text-sm">
               <span>{t.label}</span>
               <div className="flex items-center gap-4">
                 <span className="text-[11px] text-muted-foreground">{t.when}</span>
-                <span className={`font-semibold ${t.amount < 0 ? "text-red-600" : "text-brand"}`}>
-                  {t.amount < 0 ? "-" : "+"}{formatNaira(Math.abs(t.amount))}
+                <span className={`font-semibold ${t.status === "Released" ? "text-brand" : "text-muted-foreground"}`}>
+                  {t.status === "Released" ? `+${formatNaira(t.amount)}` : "Held"}
                 </span>
               </div>
             </li>
@@ -1179,37 +1272,181 @@ function MiniStat({ label, value, hint, icon }: { label: string; value: string; 
 
 /* ---------- Settings ---------- */
 
+const NIGERIAN_BANKS = [
+  { name: "Access Bank", code: "044" },
+  { name: "Citibank Nigeria", code: "023" },
+  { name: "Ecobank Nigeria", code: "050" },
+  { name: "Fidelity Bank", code: "070" },
+  { name: "First Bank of Nigeria", code: "011" },
+  { name: "First City Monument Bank", code: "214" },
+  { name: "Globus Bank", code: "00103" },
+  { name: "Guaranty Trust Bank", code: "058" },
+  { name: "Heritage Bank", code: "030" },
+  { name: "Keystone Bank", code: "082" },
+  { name: "Kuda Bank", code: "50211" },
+  { name: "Moniepoint MFB", code: "50515" },
+  { name: "Opay", code: "999992" },
+  { name: "Palmpay", code: "999991" },
+  { name: "Polaris Bank", code: "076" },
+  { name: "Providus Bank", code: "101" },
+  { name: "Stanbic IBTC Bank", code: "221" },
+  { name: "Standard Chartered Bank", code: "068" },
+  { name: "Sterling Bank", code: "232" },
+  { name: "Union Bank of Nigeria", code: "032" },
+  { name: "United Bank For Africa", code: "033" },
+  { name: "Unity Bank", code: "215" },
+  { name: "Wema Bank", code: "035" },
+  { name: "Zenith Bank", code: "057" },
+];
+
 function SettingsPanel() {
-  const [payoutSchedule, setPayoutSchedule] = useState("Weekly");
-  const [autoAccept, setAutoAccept] = useState(false);
-  const [outOfOffice, setOutOfOffice] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [published, setPublished] = useState(true);
+  const [loading, setLoading] = useState(true);
+
+  const [bankCode, setBankCode] = useState(NIGERIAN_BANKS[0].code);
+  const [accountNumber, setAccountNumber] = useState("");
+  const [existingPayout, setExistingPayout] = useState<{ bank_name: string; account_number: string; account_name: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [payoutError, setPayoutError] = useState<string | null>(null);
+  const [payoutSaved, setPayoutSaved] = useState(false);
+
+  const [deactivating, setDeactivating] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const uid = session?.user?.id ?? null;
+      if (!active) return;
+      setUserId(uid);
+      if (!uid) {
+        setLoading(false);
+        return;
+      }
+      const [{ data: profile }, { data: payout }] = await Promise.all([
+        supabase.from("provider_profiles").select("published").eq("id", uid).maybeSingle(),
+        supabase
+          .from("provider_payout_details")
+          .select("bank_name, account_number, account_name")
+          .eq("provider_id", uid)
+          .maybeSingle(),
+      ]);
+      if (!active) return;
+      if (profile) setPublished(profile.published);
+      if (payout) setExistingPayout(payout);
+      setLoading(false);
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function savePayoutDetails() {
+    if (!userId) return;
+    if (accountNumber.replace(/\D/g, "").length !== 10) {
+      setPayoutError("Enter a valid 10-digit account number.");
+      return;
+    }
+    setSaving(true);
+    setPayoutError(null);
+    const bankName = NIGERIAN_BANKS.find((b) => b.code === bankCode)?.name ?? "";
+    const { data: sessionData } = await supabase.auth.getSession();
+    const { data, error } = await supabase.functions.invoke("create-recipient", {
+      body: { bankCode, bankName, accountNumber },
+      headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
+    });
+    setSaving(false);
+    const errMsg = (data as any)?.error;
+    if (error || errMsg) {
+      setPayoutError(errMsg || "Could not verify that account. Please check the details.");
+      return;
+    }
+    setExistingPayout({ bank_name: bankName, account_number: accountNumber, account_name: (data as any).accountName });
+    setPayoutSaved(true);
+    setTimeout(() => setPayoutSaved(false), 2000);
+  }
+
+  async function toggleShopActive() {
+    if (!userId) return;
+    setDeactivating(true);
+    const nextPublished = !published;
+    const { error } = await supabase.from("provider_profiles").update({ published: nextPublished }).eq("id", userId);
+    setDeactivating(false);
+    if (!error) setPublished(nextPublished);
+  }
+
+  if (loading) {
+    return <div className="text-sm text-muted-foreground">Loading…</div>;
+  }
+
   return (
     <div className="space-y-6">
-      <PanelHeader title="Settings" desc="Shop preferences, payout schedule and availability." />
+      <PanelHeader title="Settings" desc="Payout details and shop visibility." />
+
       <section className="rounded-3xl border border-border bg-card p-6 shadow-sm space-y-4">
-        <Field label="Payout schedule">
-          <select value={payoutSchedule} onChange={(e) => setPayoutSchedule(e.target.value)} className={inputClass}>
-            {["Daily", "Weekly", "Monthly"].map((o) => <option key={o}>{o}</option>)}
+        <div>
+          <h2 className="text-sm font-semibold">Payout bank account</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Where escrow payments land when you release a completed booking.
+          </p>
+        </div>
+
+        {existingPayout && (
+          <div className="rounded-2xl border border-brand/20 bg-brand-soft/40 p-4 text-sm">
+            <p className="font-semibold text-foreground">{existingPayout.account_name}</p>
+            <p className="text-xs text-muted-foreground">
+              {existingPayout.bank_name} · ••••{existingPayout.account_number.slice(-4)}
+            </p>
+          </div>
+        )}
+
+        <Field label={existingPayout ? "Update bank" : "Bank"}>
+          <select value={bankCode} onChange={(e) => setBankCode(e.target.value)} className={inputClass}>
+            {NIGERIAN_BANKS.map((b) => (
+              <option key={b.code} value={b.code}>
+                {b.name}
+              </option>
+            ))}
           </select>
         </Field>
-        <ToggleRow
-          label="Auto-accept repeat customers"
-          hint="Instantly confirm bookings from customers you've served before."
-          value={autoAccept}
-          onChange={setAutoAccept}
-        />
-        <ToggleRow
-          label="Out of office"
-          hint="Pause new bookings while you're unavailable. Existing bookings stay confirmed."
-          value={outOfOffice}
-          onChange={setOutOfOffice}
-        />
+        <Field label="Account number" hint="10 digits, no dashes or spaces">
+          <input
+            value={accountNumber}
+            onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
+            className={inputClass}
+            placeholder="0123456789"
+          />
+        </Field>
+        {payoutError && <p className="text-sm text-destructive">{payoutError}</p>}
+        <div className="flex items-center gap-3">
+          {payoutSaved && <span className="text-xs text-brand">Saved ✓</span>}
+          <button
+            onClick={savePayoutDetails}
+            disabled={saving}
+            className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            {saving ? "Verifying…" : existingPayout ? "Update payout account" : "Verify & save"}
+          </button>
+        </div>
       </section>
+
       <section className="rounded-3xl border border-red-200 bg-red-50/40 p-6">
-        <h2 className="text-sm font-semibold text-red-700">Danger zone</h2>
-        <p className="mt-1 text-xs text-red-700/80">Deactivating hides your shop from search until you reactivate.</p>
-        <button className="mt-3 rounded-full border border-red-300 bg-white px-4 py-2 text-xs font-semibold text-red-700">
-          Deactivate shop
+        <h2 className="text-sm font-semibold text-red-700">{published ? "Deactivate shop" : "Reactivate shop"}</h2>
+        <p className="mt-1 text-xs text-red-700/80">
+          {published
+            ? "Hides your shop from search until you reactivate."
+            : "Your shop is currently hidden from search."}
+        </p>
+        <button
+          onClick={toggleShopActive}
+          disabled={deactivating}
+          className="mt-3 rounded-full border border-red-300 bg-white px-4 py-2 text-xs font-semibold text-red-700 disabled:opacity-50"
+        >
+          {deactivating ? "Working…" : published ? "Deactivate shop" : "Reactivate shop"}
         </button>
       </section>
     </div>
@@ -1230,60 +1467,6 @@ function ToggleRow({ label, hint, value, onChange }: { label: string; hint: stri
       >
         <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${value ? "left-5" : "left-0.5"}`} />
       </button>
-    </div>
-  );
-}
-
-/* ---------- Withdraw Modal ---------- */
-
-function WithdrawModal({ available, onClose }: { available: number; onClose: () => void }) {
-  const [amount, setAmount] = useState(available);
-  const [account, setAccount] = useState("Kuda Bank ••4421");
-  const [done, setDone] = useState(false);
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-3xl bg-background p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="text-xl font-semibold">Withdraw to bank</h3>
-            <p className="text-xs text-muted-foreground">Payouts arrive within minutes.</p>
-          </div>
-          <button onClick={onClose}><X className="h-5 w-5" /></button>
-        </div>
-        {done ? (
-          <div className="mt-6 rounded-2xl bg-brand-soft p-6 text-center">
-            <CheckCircle2 className="mx-auto h-8 w-8 text-brand" />
-            <p className="mt-2 text-sm font-semibold">Withdrawal sent</p>
-            <p className="text-xs text-muted-foreground">{formatNaira(amount)} to {account}.</p>
-            <button onClick={onClose} className="mt-4 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Done</button>
-          </div>
-        ) : (
-          <>
-            <div className="mt-4 rounded-2xl bg-brand-soft/50 p-4 text-center">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-brand">Available</p>
-              <p className="text-2xl font-semibold text-primary">{formatNaira(available)}</p>
-            </div>
-            <div className="mt-4 grid gap-3">
-              <Field label="Amount (₦)">
-                <input type="number" min={100} max={available} value={amount} onChange={(e) => setAmount(Number(e.target.value))} className={inputClass} />
-              </Field>
-              <Field label="To account">
-                <select value={account} onChange={(e) => setAccount(e.target.value)} className={inputClass}>
-                  <option>Kuda Bank ••4421</option>
-                  <option>GTBank ••0031</option>
-                  <option>+ Add new account</option>
-                </select>
-              </Field>
-            </div>
-            <button
-              onClick={() => setDone(true)}
-              className="mt-5 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
-            >
-              Withdraw {formatNaira(amount)}
-            </button>
-          </>
-        )}
-      </div>
     </div>
   );
 }

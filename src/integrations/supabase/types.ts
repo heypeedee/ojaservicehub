@@ -106,7 +106,9 @@ export type Database = {
           display_name: string | null
           full_name: string | null
           id: string
+          is_admin: boolean
           shop_name: string | null
+          suspended: boolean
           updated_at: string
           username: string | null
         }
@@ -116,7 +118,9 @@ export type Database = {
           display_name?: string | null
           full_name?: string | null
           id: string
+          is_admin?: boolean
           shop_name?: string | null
+          suspended?: boolean
           updated_at?: string
           username?: string | null
         }
@@ -126,7 +130,9 @@ export type Database = {
           display_name?: string | null
           full_name?: string | null
           id?: string
+          is_admin?: boolean
           shop_name?: string | null
+          suspended?: boolean
           updated_at?: string
           username?: string | null
         }
@@ -289,11 +295,18 @@ export type Database = {
           id: string
           location: string | null
           notes: string | null
+          paid_at: string | null
+          payment_status: string
+          paystack_reference: string | null
+          payout_amount: number
+          platform_fee: number
           provider_id: string
+          released_at: string | null
           scheduled_at: string | null
           service_id: string | null
           service_title: string
           status: string
+          transfer_reference: string | null
           updated_at: string
         }
         Insert: {
@@ -303,11 +316,18 @@ export type Database = {
           id?: string
           location?: string | null
           notes?: string | null
+          paid_at?: string | null
+          payment_status?: string
+          paystack_reference?: string | null
+          payout_amount?: number
+          platform_fee?: number
           provider_id: string
+          released_at?: string | null
           scheduled_at?: string | null
           service_id?: string | null
           service_title: string
           status?: string
+          transfer_reference?: string | null
           updated_at?: string
         }
         Update: {
@@ -317,11 +337,18 @@ export type Database = {
           id?: string
           location?: string | null
           notes?: string | null
+          paid_at?: string | null
+          payment_status?: string
+          paystack_reference?: string | null
+          payout_amount?: number
+          platform_fee?: number
           provider_id?: string
+          released_at?: string | null
           scheduled_at?: string | null
           service_id?: string | null
           service_title?: string
           status?: string
+          transfer_reference?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -344,6 +371,47 @@ export type Database = {
             columns: ["service_id"]
             isOneToOne: false
             referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      provider_payout_details: {
+        Row: {
+          account_name: string
+          account_number: string
+          bank_code: string
+          bank_name: string
+          created_at: string
+          paystack_recipient_code: string | null
+          provider_id: string
+          updated_at: string
+        }
+        Insert: {
+          account_name: string
+          account_number: string
+          bank_code: string
+          bank_name: string
+          created_at?: string
+          paystack_recipient_code?: string | null
+          provider_id: string
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          bank_code?: string
+          bank_name?: string
+          created_at?: string
+          paystack_recipient_code?: string | null
+          provider_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_payout_details_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: true
+            referencedRelation: "provider_profiles"
             referencedColumns: ["id"]
           },
         ]
