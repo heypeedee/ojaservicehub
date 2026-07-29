@@ -179,8 +179,8 @@ function ProDashboard() {
     };
   }, []);
 
-  const completedRevenue = bookings.filter((b) => b.status === "Completed").reduce((s, b) => s + b.amount, 0);
-  const pendingRevenue = bookings.filter((b) => b.status !== "Completed" && b.status !== "Cancelled").reduce((s, b) => s + b.amount, 0);
+  const completedRevenue = bookings.filter((b) => b.status === "completed").reduce((s, b) => s + b.amount, 0);
+  const pendingRevenue = bookings.filter((b) => b.status !== "completed" && b.status !== "cancelled").reduce((s, b) => s + b.amount, 0);
   const activeServices = services.filter((s) => s.active).length;
   const unread = messages.filter((m) => m.unread).length;
 
@@ -442,7 +442,7 @@ function Overview({
   onWithdraw: () => void;
   onSection: (s: Section) => void;
 }) {
-  const upcoming = bookings.filter((b) => b.status === "Confirmed" || b.status === "New" || b.status === "In progress").slice(0, 4);
+  const upcoming = bookings.filter((b) => b.status === "accepted" || b.status === "pending" || b.status === "in_progress").slice(0, 4);
   const kpis = [
     { label: "This month revenue", value: formatNaira(completedRevenue), sub: "+18% MoM", icon: TrendingUp, tint: "bg-brand-soft text-brand" },
     { label: "Pending payout", value: formatNaira(pendingRevenue), sub: "Escrow held", icon: Wallet, tint: "bg-orange/10 text-orange" },
@@ -895,7 +895,7 @@ function ServiceEditor({ service, onClose, onSave }: { service: Service; onClose
 function OrdersPanel({ bookings, onStatus }: { bookings: Booking[]; onStatus: (id: string, s: Booking["status"]) => void }) {
   const [tab, setTab] = useState<Booking["status"] | "all">("all");
   const filtered = useMemo(() => (tab === "all" ? bookings : bookings.filter((b) => b.status === tab)), [tab, bookings]);
-  const tabs: (Booking["status"] | "all")[] = ["all", "New", "Confirmed", "In progress", "Completed", "Cancelled"];
+  const tabs: (Booking["status"] | "all")[] = ["all", "pending", "accepted", "in_progress", "completed", "cancelled"];
 
   return (
     <div className="space-y-6">
@@ -928,7 +928,7 @@ function OrdersPanel({ bookings, onStatus }: { bookings: Booking[]; onStatus: (i
                 onChange={(e) => onStatus(b.id, e.target.value as Booking["status"])}
                 className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold"
               >
-                {["New", "Confirmed", "In progress", "Completed", "Cancelled"].map((s) => (
+                {["pending", "accepted", "in_progress", "completed", "cancelled"].map((s) => (
                   <option key={s}>{s}</option>
                 ))}
               </select>
@@ -1114,7 +1114,7 @@ function AnalyticsPanel() {
     { label: "Shop views", value: 3820 },
     { label: "Enquiries", value: 412 },
     { label: "Bookings", value: 178 },
-    { label: "Completed", value: 164 },
+    { label: "completed", value: 164 },
     { label: "5★ reviews", value: 141 },
   ];
   const topServices = [
