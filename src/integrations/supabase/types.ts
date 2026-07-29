@@ -14,6 +14,104 @@ export type Database = {
   }
   public: {
     Tables: {
+      bookings: {
+        Row: {
+          address: string | null
+          amount: number
+          buyer_id: string | null
+          created_at: string
+          customer_id: string | null
+          id: string
+          location: string | null
+          notes: string | null
+          photo_urls: string[]
+          platform_fee_ngn: number
+          price_ngn: number
+          provider_id: string
+          scheduled_at: string | null
+          service_id: string | null
+          service_title: string | null
+          status: Database["public"]["Enums"]["booking_status"]
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          amount?: number
+          buyer_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          location?: string | null
+          notes?: string | null
+          photo_urls?: string[]
+          platform_fee_ngn?: number
+          price_ngn?: number
+          provider_id: string
+          scheduled_at?: string | null
+          service_id?: string | null
+          service_title?: string | null
+          status?: Database["public"]["Enums"]["booking_status"]
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          amount?: number
+          buyer_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          location?: string | null
+          notes?: string | null
+          photo_urls?: string[]
+          platform_fee_ngn?: number
+          price_ngn?: number
+          provider_id?: string
+          scheduled_at?: string | null
+          service_id?: string | null
+          service_title?: string | null
+          status?: Database["public"]["Enums"]["booking_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      categories: {
+        Row: {
+          created_at: string
+          icon: string | null
+          id: string
+          name: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          name: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          name?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       conversation_participants: {
         Row: {
           conversation_id: string
@@ -64,6 +162,27 @@ export type Database = {
         }
         Relationships: []
       }
+      favourites: {
+        Row: {
+          created_at: string
+          id: string
+          provider_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          provider_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          provider_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           body: string | null
@@ -99,6 +218,39 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          body: string | null
+          category: string
+          created_at: string
+          id: string
+          is_read: boolean
+          link: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          category: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          link?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -132,19 +284,278 @@ export type Database = {
         }
         Relationships: []
       }
+      provider_profiles: {
+        Row: {
+          area: string | null
+          business_name: string
+          category_id: string | null
+          cover_image_url: string | null
+          created_at: string
+          id: string
+          phone: string | null
+          price_from: number | null
+          published: boolean
+          rating: number
+          review_count: number
+          tagline: string | null
+          tier: string
+          updated_at: string
+          verified: boolean
+        }
+        Insert: {
+          area?: string | null
+          business_name?: string
+          category_id?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          id: string
+          phone?: string | null
+          price_from?: number | null
+          published?: boolean
+          rating?: number
+          review_count?: number
+          tagline?: string | null
+          tier?: string
+          updated_at?: string
+          verified?: boolean
+        }
+        Update: {
+          area?: string | null
+          business_name?: string
+          category_id?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          id?: string
+          phone?: string | null
+          price_from?: number | null
+          published?: boolean
+          rating?: number
+          review_count?: number
+          tagline?: string | null
+          tier?: string
+          updated_at?: string
+          verified?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_profiles_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reviews: {
+        Row: {
+          body: string | null
+          booking_id: string
+          buyer_id: string
+          created_at: string
+          id: string
+          media_urls: string[]
+          provider_id: string
+          rating: number
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          booking_id: string
+          buyer_id: string
+          created_at?: string
+          id?: string
+          media_urls?: string[]
+          provider_id: string
+          rating: number
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          booking_id?: string
+          buyer_id?: string
+          created_at?: string
+          id?: string
+          media_urls?: string[]
+          provider_id?: string
+          rating?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      services: {
+        Row: {
+          active: boolean
+          category: string | null
+          category_id: string | null
+          created_at: string
+          description: string | null
+          duration: string | null
+          duration_minutes: number | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          price: number
+          price_ngn: number
+          provider_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category?: string | null
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          duration?: string | null
+          duration_minutes?: number | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          price?: number
+          price_ngn?: number
+          provider_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category?: string | null
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          duration?: string | null
+          duration_minutes?: number | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          price?: number
+          price_ngn?: number
+          provider_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallet_transactions: {
+        Row: {
+          amount_ngn: number
+          booking_id: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          reference: string | null
+          status: Database["public"]["Enums"]["wallet_txn_status"]
+          type: Database["public"]["Enums"]["wallet_txn_type"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_ngn: number
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          reference?: string | null
+          status?: Database["public"]["Enums"]["wallet_txn_status"]
+          type: Database["public"]["Enums"]["wallet_txn_type"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_ngn?: number
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          reference?: string | null
+          status?: Database["public"]["Enums"]["wallet_txn_status"]
+          type?: Database["public"]["Enums"]["wallet_txn_type"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_transactions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       generate_unique_username: { Args: { seed: string }; Returns: string }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       is_participant: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
       }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
+      booking_status:
+        | "pending"
+        | "accepted"
+        | "declined"
+        | "in_progress"
+        | "completed"
+        | "cancelled"
+        | "disputed"
+      wallet_txn_status: "pending" | "completed" | "failed"
+      wallet_txn_type:
+        | "escrow_hold"
+        | "escrow_release"
+        | "tip"
+        | "withdrawal"
+        | "refund"
+        | "topup"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -271,6 +682,26 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "moderator", "user"],
+      booking_status: [
+        "pending",
+        "accepted",
+        "declined",
+        "in_progress",
+        "completed",
+        "cancelled",
+        "disputed",
+      ],
+      wallet_txn_status: ["pending", "completed", "failed"],
+      wallet_txn_type: [
+        "escrow_hold",
+        "escrow_release",
+        "tip",
+        "withdrawal",
+        "refund",
+        "topup",
+      ],
+    },
   },
 } as const

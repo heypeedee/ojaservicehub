@@ -93,7 +93,7 @@ function BookPage() {
           id: pp.id,
           name: pp.business_name,
           craft: pp.categories?.name ?? "Service provider",
-          area: pp.area,
+          area: pp.area ?? "",
           rating: pp.rating,
           reviews: pp.review_count,
           tier: pp.tier,
@@ -162,7 +162,7 @@ function BookPage() {
       scheduled_at: scheduledAt,
       location: provider.area,
       notes: notes || null,
-      status: "New",
+      status: "pending",
     });
     setSubmitting(false);
     if (error) {
