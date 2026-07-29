@@ -74,7 +74,7 @@ type Booking = {
   service: string;
   when: string;
   amount: number;
-  status: "New" | "Confirmed" | "In progress" | "Completed" | "Cancelled";
+  status: "pending" | "accepted" | "declined" | "in_progress" | "completed" | "cancelled" | "disputed";
 };
 
 type CustomerMsg = {
