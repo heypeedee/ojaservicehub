@@ -780,12 +780,19 @@ function NewChatDialog({
         .select()
         .single();
       if (convoErr || !convo) throw convoErr ?? new Error("Could not create conversation");
+
+      // Insert the caller's own participant row first and let it commit before
+      // adding the other person — the policy that allows adding someone else
+      // checks "is the caller already a participant?", which isn't reliably
+      // visible yet if both rows are inserted in one batched statement.
+      const { error: selfErr } = await supabase
+        .from("conversation_participants")
+        .insert({ conversation_id: convo.id, user_id: userId });
+      if (selfErr) throw selfErr;
+
       const { error: pErr } = await supabase
         .from("conversation_participants")
-        .insert([
-          { conversation_id: convo.id, user_id: userId },
-          { conversation_id: convo.id, user_id: other.id },
-        ]);
+        .insert({ conversation_id: convo.id, user_id: other.id });
       if (pErr) throw pErr;
       onCreated(convo.id);
     } catch (e: any) {
