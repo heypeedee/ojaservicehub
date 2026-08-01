@@ -47,6 +47,7 @@ type Order = {
   pro: string;
   craft: string;
   when: string;
+  rawDate: string | null;
   area: string;
   amount: number;
   status: OrderStatus;
@@ -61,6 +62,7 @@ type BookingRow = {
   amount: number;
   status: string;
   scheduled_at: string | null;
+  updated_at: string;
   location: string | null;
   provider_id: string;
   provider_profiles: { business_name: string; area: string; categories: { name: string } | null } | null;
@@ -74,14 +76,8 @@ function mapBookingStatus(s: string): OrderStatus {
   return "Awaiting pro";
 }
 
-const initialFavourites = [
-  { id: "f1", name: "Adaeze Okoye", craft: "Bridal Hair", rating: 4.98, image: "https://images.unsplash.com/photo-1595916996826-be9ad7f0aabc?auto=format&fit=crop&w=200&q=80" },
-  { id: "f2", name: "Chinedu Bala", craft: "Electrician", rating: 4.93, image: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=200&q=80" },
-  { id: "f3", name: "Kunle Adisa", craft: "Private Chef", rating: 4.89, image: "https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=200&q=80" },
-  { id: "f4", name: "Zainab Musa", craft: "Tailor", rating: 4.96, image: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=200&q=80" },
-];
+const initialFavourites: { id: string; name: string; craft: string; rating: number; image: string }[] = [];
 
-const spend = [12, 18, 9, 24, 16, 30, 22, 28, 34, 19, 26, 41];
 const monthLabels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
 
 const formatNaira = (n: number) => `₦${n.toLocaleString("en-NG")}`;
@@ -128,7 +124,7 @@ function BuyerDashboard() {
       const { data: rows } = await supabase
         .from("bookings")
         .select(
-          "id, service_title, amount, status, scheduled_at, location, provider_id, provider_profiles(business_name, area, categories(name))"
+          "id, service_title, amount, status, scheduled_at, updated_at, location, provider_id, provider_profiles(business_name, area, categories(name))"
         )
         .eq("customer_id", uid)
         .order("created_at", { ascending: false });
@@ -142,6 +138,7 @@ function BuyerDashboard() {
           when: b.scheduled_at
             ? new Date(b.scheduled_at).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })
             : "—",
+          rawDate: b.updated_at,
           area: b.location || b.provider_profiles?.area || "—",
           amount: Number(b.amount),
           status: mapBookingStatus(b.status),
@@ -206,7 +203,7 @@ function BuyerDashboard() {
         <div className="mt-8 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
           <div className="space-y-6">
             <UpcomingBookings items={upcoming} />
-            <SpendChart totalSpend={totalSpend} />
+            <SpendChart orders={orders} totalSpend={totalSpend} />
             <OrderHistory
               orders={orders}
               onTip={setTipTarget}
@@ -417,29 +414,49 @@ function UpcomingBookings({ items }: { items: Order[] }) {
   );
 }
 
-function SpendChart({ totalSpend }: { totalSpend: number }) {
-  const max = Math.max(...spend);
+function SpendChart({ orders, totalSpend }: { orders: Order[]; totalSpend: number }) {
+  const now = new Date();
+  const months = Array.from({ length: 12 }).map((_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
+    return { key: `${d.getFullYear()}-${d.getMonth()}`, label: monthLabels[d.getMonth()] };
+  });
+  const totals = months.map((m) => {
+    return orders
+      .filter((o) => {
+        if (o.status !== "Completed" || !o.rawDate) return false;
+        const d = new Date(o.rawDate);
+        return `${d.getFullYear()}-${d.getMonth()}` === m.key;
+      })
+      .reduce((s, o) => s + o.amount, 0);
+  });
+  const max = Math.max(1, ...totals);
+  const hasAnySpend = totals.some((v) => v > 0);
+
   return (
     <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
       <div className="flex items-end justify-between">
         <div>
           <h2 className="text-lg font-semibold">Spend on Ọjà</h2>
-          <p className="text-xs text-muted-foreground">Last 12 months, in thousands (₦).</p>
+          <p className="text-xs text-muted-foreground">Last 12 months, completed jobs only.</p>
         </div>
         <div className="text-right">
           <p className="text-2xl font-semibold">{formatNaira(totalSpend)}</p>
-          <p className="text-[11px] text-brand">+18% vs last year</p>
         </div>
       </div>
+      {!hasAnySpend && (
+        <p className="mt-4 rounded-2xl bg-muted/50 p-3 text-center text-xs text-muted-foreground">
+          No completed jobs yet — this fills in once you've booked and paid for a service.
+        </p>
+      )}
       <div className="mt-6 grid grid-cols-12 items-end gap-2 h-40">
-        {spend.map((v, i) => (
+        {totals.map((v, i) => (
           <div key={i} className="flex h-full flex-col items-center justify-end gap-2">
             <div
-              className="w-full rounded-t-md bg-gradient-to-t from-primary to-[oklch(0.62_0.15_155)] transition-all"
-              style={{ height: `${(v / max) * 100}%` }}
-              title={`₦${v}k`}
+              className={`w-full rounded-t-md transition-all ${v > 0 ? "bg-gradient-to-t from-primary to-[oklch(0.62_0.15_155)]" : "bg-muted"}`}
+              style={{ height: v > 0 ? `${(v / max) * 100}%` : "3%" }}
+              title={v > 0 ? `₦${v.toLocaleString()}` : "No spend"}
             />
-            <span className="text-[10px] text-muted-foreground">{monthLabels[i]}</span>
+            <span className="text-[10px] text-muted-foreground">{months[i].label}</span>
           </div>
         ))}
       </div>
@@ -649,9 +666,12 @@ function FavouritesCard({
       </div>
       <p className="text-xs text-muted-foreground">Rebook the pros you love in one tap.</p>
       {items.length === 0 && (
-        <p className="mt-4 rounded-2xl bg-muted/50 p-4 text-center text-xs text-muted-foreground">
-          No saved pros yet.
-        </p>
+        <div className="mt-4 rounded-2xl bg-muted/50 p-4 text-center">
+          <p className="text-xs text-muted-foreground">No favourites yet.</p>
+          <Link to="/search" search={{ q: "" }} className="mt-2 inline-block text-xs font-semibold text-primary hover:underline">
+            Find a pro to get started →
+          </Link>
+        </div>
       )}
       <ul className="mt-4 space-y-2">
         {items.map((f) => (
@@ -692,21 +712,15 @@ function TipsSummary({ total, count }: { total: number; count: number }) {
   return (
     <section className="rounded-3xl border border-dashed border-border bg-card p-6">
       <div className="flex items-center gap-2 text-sm font-semibold">
-        <Coins className="h-4 w-4 text-primary" /> HubPoints & tipping
+        <Coins className="h-4 w-4 text-primary" /> Tipping
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
-        Earn 1 HubPoint per ₦1,000 spent. Tips go instantly to your pro — no platform cut.
+        Tips go instantly to your pro — no platform cut.
       </p>
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-2xl bg-brand-soft px-4 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-brand">Points</p>
-          <p className="text-lg font-semibold text-primary">187 pts</p>
-        </div>
-        <div className="rounded-2xl bg-orange/10 px-4 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-orange">Tips given</p>
-          <p className="text-lg font-semibold text-orange">{formatNaira(total)}</p>
-          <p className="text-[10px] text-muted-foreground">{count} pros rewarded</p>
-        </div>
+      <div className="mt-4 rounded-2xl bg-orange/10 px-4 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-orange">Tips given</p>
+        <p className="text-lg font-semibold text-orange">{formatNaira(total)}</p>
+        <p className="text-[10px] text-muted-foreground">{count} pro{count === 1 ? "" : "s"} rewarded</p>
       </div>
     </section>
   );

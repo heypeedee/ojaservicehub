@@ -368,7 +368,6 @@ function Topbar({ unread }: { unread: number }) {
         <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
           <Link to="/pro/dashboard" className="text-foreground">Business</Link>
           <Link to="/dashboard" className="hover:text-foreground">Buyer view</Link>
-          <Link to="/pro/adaeze" className="hover:text-foreground">Public shop</Link>
         </nav>
         <div className="flex items-center gap-2">
           <Link
@@ -379,12 +378,6 @@ function Topbar({ unread }: { unread: number }) {
             {unread > 0 && (
               <span className="ml-1 rounded-full bg-orange px-1.5 text-[9px] font-bold text-white">{unread}</span>
             )}
-          </Link>
-          <Link
-            to="/pro/adaeze"
-            className="hidden md:inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground"
-          >
-            <Eye className="h-3.5 w-3.5" /> View shop
           </Link>
         </div>
       </div>

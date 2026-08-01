@@ -24,9 +24,7 @@ import { Route as PlansRouteImport } from './routes/plans'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as WalletRouteImport } from './routes/wallet'
-import { Route as ProAdaezeRouteImport } from './routes/pro.adaeze'
 import { Route as ProDashboardRouteImport } from './routes/pro.dashboard'
-import { Route as ProviderBookingsRouteImport } from './routes/provider.bookings'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -103,19 +101,9 @@ const WalletRoute = WalletRouteImport.update({
   path: '/wallet',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProAdaezeRoute = ProAdaezeRouteImport.update({
-  id: '/pro/adaeze',
-  path: '/pro/adaeze',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ProDashboardRoute = ProDashboardRouteImport.update({
   id: '/pro/dashboard',
   path: '/pro/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProviderBookingsRoute = ProviderBookingsRouteImport.update({
-  id: '/provider/bookings',
-  path: '/provider/bookings',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -135,9 +123,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/signup': typeof SignupRoute
   '/wallet': typeof WalletRoute
-  '/pro/adaeze': typeof ProAdaezeRoute
   '/pro/dashboard': typeof ProDashboardRoute
-  '/provider/bookings': typeof ProviderBookingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -155,9 +141,7 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/signup': typeof SignupRoute
   '/wallet': typeof WalletRoute
-  '/pro/adaeze': typeof ProAdaezeRoute
   '/pro/dashboard': typeof ProDashboardRoute
-  '/provider/bookings': typeof ProviderBookingsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -176,9 +160,7 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/signup': typeof SignupRoute
   '/wallet': typeof WalletRoute
-  '/pro/adaeze': typeof ProAdaezeRoute
   '/pro/dashboard': typeof ProDashboardRoute
-  '/provider/bookings': typeof ProviderBookingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -198,9 +180,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/signup'
     | '/wallet'
-    | '/pro/adaeze'
     | '/pro/dashboard'
-    | '/provider/bookings'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -218,9 +198,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/signup'
     | '/wallet'
-    | '/pro/adaeze'
     | '/pro/dashboard'
-    | '/provider/bookings'
   id:
     | '__root__'
     | '/'
@@ -238,9 +216,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/signup'
     | '/wallet'
-    | '/pro/adaeze'
     | '/pro/dashboard'
-    | '/provider/bookings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -259,9 +235,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SignupRoute: typeof SignupRoute
   WalletRoute: typeof WalletRoute
-  ProAdaezeRoute: typeof ProAdaezeRoute
   ProDashboardRoute: typeof ProDashboardRoute
-  ProviderBookingsRoute: typeof ProviderBookingsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -371,25 +345,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WalletRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/pro/adaeze': {
-      id: '/pro/adaeze'
-      path: '/pro/adaeze'
-      fullPath: '/pro/adaeze'
-      preLoaderRoute: typeof ProAdaezeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/pro/dashboard': {
       id: '/pro/dashboard'
       path: '/pro/dashboard'
       fullPath: '/pro/dashboard'
       preLoaderRoute: typeof ProDashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/provider/bookings': {
-      id: '/provider/bookings'
-      path: '/provider/bookings'
-      fullPath: '/provider/bookings'
-      preLoaderRoute: typeof ProviderBookingsRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -411,9 +371,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SignupRoute: SignupRoute,
   WalletRoute: WalletRoute,
-  ProAdaezeRoute: ProAdaezeRoute,
   ProDashboardRoute: ProDashboardRoute,
-  ProviderBookingsRoute: ProviderBookingsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

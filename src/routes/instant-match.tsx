@@ -15,6 +15,7 @@ import {
   Zap,
 } from "lucide-react";
 import { BackNav } from "@/components/BackNav";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/instant-match")({
   head: () => ({
@@ -43,115 +44,28 @@ type Pro = {
   initials: string;
   craft: string;
   area: string;
-  distanceKm: number;
   rating: number;
   reviews: number;
   priceFrom: number;
-  available: string;
-  responseMin: number;
+  availableToday: boolean;
+  openNow: boolean;
   verified: boolean;
-  tier: "Gold" | "Platinum" | "Elite";
-  tags: string[];
+  tier: string;
 };
 
-const pool: Pro[] = [
-  {
-    id: "p1",
-    name: "Adaeze Okoye",
-    initials: "AO",
-    craft: "Bridal Hair & Makeup",
-    area: "Lekki Phase 1",
-    distanceKm: 2.1,
-    rating: 4.98,
-    reviews: 214,
-    priceFrom: 65000,
-    available: "Today · 4:00 PM",
-    responseMin: 4,
-    verified: true,
-    tier: "Platinum",
-    tags: ["bridal", "makeup", "hair", "wedding", "airbrush"],
-  },
-  {
-    id: "p2",
-    name: "Chef Ifeanyi",
-    initials: "CI",
-    craft: "Private Chef · West African",
-    area: "Victoria Island",
-    distanceKm: 3.8,
-    rating: 4.9,
-    reviews: 128,
-    priceFrom: 40000,
-    available: "Fri · 7:00 PM",
-    responseMin: 12,
-    verified: true,
-    tier: "Gold",
-    tags: ["chef", "dinner", "food", "cook", "private"],
-  },
-  {
-    id: "p3",
-    name: "Michael O.",
-    initials: "MO",
-    craft: "Barber · Fade specialist",
-    area: "Yaba",
-    distanceKm: 1.2,
-    rating: 4.85,
-    reviews: 302,
-    priceFrom: 4000,
-    available: "Today · Now",
-    responseMin: 2,
-    verified: true,
-    tier: "Elite",
-    tags: ["barber", "haircut", "fade", "beard"],
-  },
-  {
-    id: "p4",
-    name: "Bola Electric",
-    initials: "BE",
-    craft: "Certified Electrician",
-    area: "Surulere",
-    distanceKm: 5.4,
-    rating: 4.8,
-    reviews: 187,
-    priceFrom: 8000,
-    available: "Tomorrow · 9:00 AM",
-    responseMin: 20,
-    verified: true,
-    tier: "Gold",
-    tags: ["electric", "electrician", "wiring", "repair", "socket"],
-  },
-  {
-    id: "p5",
-    name: "Sparkle Cleaners",
-    initials: "SC",
-    craft: "Home Deep Cleaning",
-    area: "Ikoyi",
-    distanceKm: 4.2,
-    rating: 4.76,
-    reviews: 411,
-    priceFrom: 22000,
-    available: "Today · 6:00 PM",
-    responseMin: 6,
-    verified: true,
-    tier: "Platinum",
-    tags: ["clean", "cleaning", "home", "deep", "house"],
-  },
-  {
-    id: "p6",
-    name: "Femi Tunes",
-    initials: "FT",
-    craft: "Event DJ · Afrobeats & Amapiano",
-    area: "Lekki",
-    distanceKm: 3.1,
-    rating: 4.72,
-    reviews: 96,
-    priceFrom: 90000,
-    available: "Sat · 8:00 PM",
-    responseMin: 18,
-    verified: false,
-    tier: "Gold",
-    tags: ["dj", "event", "party", "music", "wedding"],
-  },
-];
+type ProviderRow = {
+  id: string;
+  business_name: string;
+  area: string;
+  rating: number;
+  review_count: number;
+  price_from: number;
+  available_today: boolean;
+  open_now: boolean;
+  verified: boolean;
+  tier: string;
+  categories: { name: string } | null;
+};
 
 const chips = [
   "Barber near Yaba, today",
@@ -160,48 +74,94 @@ const chips = [
   "Certified electrician tomorrow for AC install",
 ];
 
+// Pull a location phrase out of free text like "barber near Yaba this evening"
+// or "deep clean in Ikoyi this weekend" — this is a plain substring match
+// against each provider's real `area` text, not real geocoding/distance,
+// since providers only have a free-text area on file right now.
+function extractLocationPhrase(q: string): string | null {
+  const m = q.match(/\b(?:near|in|around)\s+([a-z\s]+?)(?:,|\bthis\b|\btoday\b|\btomorrow\b|\bfor\b|$)/i);
+  const phrase = m?.[1]?.trim();
+  return phrase && phrase.length >= 3 ? phrase : null;
+}
+
 function InstantMatchPage() {
   const [query, setQuery] = useState("");
   const [budget, setBudget] = useState(50000);
   const [when, setWhen] = useState<"asap" | "today" | "week">("asap");
   const [status, setStatus] = useState<"idle" | "searching" | "done">("idle");
   const [matches, setMatches] = useState<(Pro & { score: number; why: string[] })[]>([]);
+  const [noLocationMatch, setNoLocationMatch] = useState<string | null>(null);
 
-  function run(q: string) {
+  async function run(q: string) {
     setQuery(q);
     setStatus("searching");
     setMatches([]);
-    // Simulated ranking: keyword overlap + availability + distance + rating + price fit
+    setNoLocationMatch(null);
+
+    const { data } = await supabase
+      .from("provider_profiles")
+      .select(
+        "id, business_name, area, rating, review_count, price_from, available_today, open_now, verified, tier, categories(name)"
+      )
+      .eq("published", true);
+
+    const pool: Pro[] = ((data as unknown as ProviderRow[]) ?? []).map((p) => ({
+      id: p.id,
+      name: p.business_name,
+      initials: p.business_name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?",
+      craft: p.categories?.name ?? "Service provider",
+      area: p.area,
+      rating: p.rating,
+      reviews: p.review_count,
+      priceFrom: Number(p.price_from),
+      availableToday: p.available_today,
+      openNow: p.open_now,
+      verified: p.verified,
+      tier: p.tier,
+    }));
+
+    const words = q.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+    const locationPhrase = extractLocationPhrase(q);
+    const locationWords = locationPhrase?.toLowerCase().split(/\s+/).filter((w) => w.length >= 3) ?? [];
+
+    let candidates = pool;
+    if (locationWords.length > 0) {
+      const inArea = pool.filter((p) => locationWords.some((w) => p.area.toLowerCase().includes(w)));
+      if (inArea.length === 0) {
+        setNoLocationMatch(locationPhrase);
+        setMatches([]);
+        setStatus("done");
+        return;
+      }
+      candidates = inArea;
+    }
+
     setTimeout(() => {
-      const words = q.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-      const ranked = pool
+      const ranked = candidates
         .map((p) => {
-          const keyword = words.reduce(
-            (s, w) => s + (p.tags.some((t) => t.includes(w)) || p.craft.toLowerCase().includes(w) ? 1 : 0),
-            0,
-          );
-          const availabilityBoost = when === "asap" ? (p.available.includes("Now") ? 1.2 : p.available.includes("Today") ? 0.9 : 0.4) : 0.8;
-          const distanceScore = Math.max(0, 1 - p.distanceKm / 10);
-          const ratingScore = (p.rating - 4.5) * 2;
-          const priceFit = p.priceFrom <= budget ? 1 : Math.max(0, 1 - (p.priceFrom - budget) / budget);
+          const keyword = words.reduce((s, w) => s + (p.craft.toLowerCase().includes(w) ? 1 : 0), 0);
+          const availabilityBoost = when === "asap" ? (p.openNow ? 1.2 : p.availableToday ? 0.9 : 0.4) : 0.8;
+          const locationBoost = locationWords.some((w) => p.area.toLowerCase().includes(w)) ? 1 : 0;
+          const ratingScore = p.rating > 0 ? (p.rating - 4.5) * 2 : 0;
+          const priceFit = p.priceFrom === 0 ? 0.5 : p.priceFrom <= budget ? 1 : Math.max(0, 1 - (p.priceFrom - budget) / budget);
           const verifiedBoost = p.verified ? 0.15 : 0;
           const score = Math.round(
-            (keyword * 2 + availabilityBoost + distanceScore + ratingScore + priceFit + verifiedBoost) * 12,
+            (keyword * 2 + availabilityBoost + locationBoost + ratingScore + priceFit + verifiedBoost) * 12
           );
           const why: string[] = [];
           if (keyword > 0) why.push("Matches your description");
-          if (p.available.toLowerCase().includes("now") || p.available.toLowerCase().includes("today"))
-            why.push("Available today");
-          if (p.distanceKm < 3) why.push(`Only ${p.distanceKm} km away`);
-          if (p.rating >= 4.85) why.push(`Top-rated (${p.rating}★)`);
-          if (p.priceFrom <= budget) why.push("Within your budget");
+          if (p.openNow) why.push("Open now");
+          else if (p.availableToday) why.push("Available today");
+          if (locationBoost > 0) why.push(`Located in ${p.area}`);
+          if (p.rating >= 4.5) why.push(`Top-rated (${p.rating.toFixed(2)}★)`);
+          if (p.priceFrom > 0 && p.priceFrom <= budget) why.push("Within your budget");
           return { ...p, score, why: why.slice(0, 3) };
         })
         .sort((a, b) => b.score - a.score)
         .slice(0, 4);
       setMatches(ranked);
       setStatus("done");
-    }, 1400);
+    }, 900);
   }
 
   return (
@@ -309,7 +269,19 @@ function InstantMatchPage() {
         <section className="mt-8">
           {status === "idle" && <HowItWorks />}
           {status === "searching" && <Searching query={query || chips[0]} />}
-          {status === "done" && <Results matches={matches} />}
+          {status === "done" && noLocationMatch && (
+            <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
+              <p className="text-sm font-semibold text-foreground">No pros found near "{noLocationMatch}" yet.</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Try a nearby area, or{" "}
+                <Link to="/search" search={{ q: "" }} className="font-semibold text-primary hover:underline">
+                  browse all pros
+                </Link>{" "}
+                instead.
+              </p>
+            </div>
+          )}
+          {status === "done" && !noLocationMatch && <Results matches={matches} />}
         </section>
       </div>
     </div>
@@ -380,11 +352,25 @@ function Searching({ query }: { query: string }) {
 }
 
 function Results({ matches }: { matches: (Pro & { score: number; why: string[] })[] }) {
+  if (matches.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
+        <p className="text-sm font-semibold text-foreground">No pros match this yet.</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Ọjà is early — new pros join every week.{" "}
+          <Link to="/search" search={{ q: "" }} className="font-semibold text-primary hover:underline">
+            Browse everyone
+          </Link>{" "}
+          in the meantime.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Your best matches</h2>
-        <span className="text-xs text-muted-foreground">Ranked by fit · updated live</span>
+        <span className="text-xs text-muted-foreground">Ranked by fit</span>
       </div>
       <ul className="space-y-3">
         {matches.map((m, i) => (
@@ -421,9 +407,13 @@ function MatchCard({ match, rank }: { match: Pro & { score: number; why: string[
           </div>
           <p className="text-xs text-muted-foreground">{match.craft}</p>
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {match.area} · {match.distanceKm} km</span>
-            <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" /> {match.available}</span>
-            <span className="inline-flex items-center gap-1"><Star className="h-3 w-3 fill-amber-500 text-amber-500" /> {match.rating} ({match.reviews})</span>
+            <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {match.area}</span>
+            <span className="inline-flex items-center gap-1">
+              <Clock className="h-3 w-3" /> {match.openNow ? "Open now" : match.availableToday ? "Available today" : "Check availability"}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Star className="h-3 w-3 fill-amber-500 text-amber-500" /> {match.rating > 0 ? match.rating.toFixed(2) : "New"} ({match.reviews})
+            </span>
             <span className="inline-flex items-center gap-1"><Wallet className="h-3 w-3" /> from ₦{match.priceFrom.toLocaleString()}</span>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -447,14 +437,13 @@ function MatchCard({ match, rank }: { match: Pro & { score: number; why: string[
               <MessageCircle className="h-3.5 w-3.5" /> Chat
             </Link>
             <Link
-              to="/search"
-              search={{ q: "" }}
+              to="/book"
+              search={{ providerId: match.id }}
               className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
             >
               Book now
             </Link>
           </div>
-          <p className="text-right text-[10px] text-muted-foreground">Responds in ~{match.responseMin} min</p>
         </div>
       </div>
     </li>

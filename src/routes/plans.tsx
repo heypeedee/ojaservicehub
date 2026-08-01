@@ -25,7 +25,7 @@ type PlanId = "free" | "premium";
 
 const PRICE = {
   free: { monthly: 0, yearly: 0 },
-  premium: { monthly: 7500, yearly: 72000 }, // NGN
+  premium: { monthly: "TBA" as const, yearly: "TBA" as const },
 };
 
 export const Route = createFileRoute("/plans")({
@@ -49,11 +49,6 @@ export const Route = createFileRoute("/plans")({
 function PlansPage() {
   const [billing, setBilling] = useState<Billing>("yearly");
   const [current, setCurrent] = useState<PlanId>("free");
-
-  const yearlyDiscountPct = useMemo(
-    () => Math.round((1 - PRICE.premium.yearly / (PRICE.premium.monthly * 12)) * 100),
-    [],
-  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/40">
@@ -91,7 +86,6 @@ function PlansPage() {
               className={`rounded-full px-4 py-1.5 text-xs font-semibold transition ${billing === "yearly" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
             >
               Yearly
-              <span className="ml-1 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">−{yearlyDiscountPct}%</span>
             </button>
           </div>
         </div>
@@ -242,13 +236,6 @@ function PlansPage() {
                 </Link>
               </div>
             </div>
-            <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground"><Star className="h-3.5 w-3.5 text-amber-500" /> Loved by top pros</div>
-              <p className="mt-2 text-sm">
-                "Featured placement paid for itself in the first week. My bookings doubled and the AI reply
-                tool saves me an hour a day." — <span className="font-semibold">Adaeze O., Elite bridal artist</span>
-              </p>
-            </div>
           </div>
         </div>
       </section>
@@ -262,7 +249,7 @@ function PlanCard({
   id: PlanId;
   title: string;
   tagline: string;
-  price: number;
+  price: number | "TBA";
   billing: Billing;
   icon: typeof Zap;
   features: { text: string; ok: boolean; bold?: boolean }[];
@@ -271,6 +258,7 @@ function PlanCard({
   onSelect: () => void;
 }) {
   const fmt = (n: number) => "₦" + n.toLocaleString();
+  const isTba = price === "TBA";
   return (
     <div className={`relative rounded-3xl border p-6 shadow-sm ${highlighted ? "border-primary bg-gradient-to-b from-primary/5 to-card" : "border-border bg-card"}`}>
       {highlighted && (
@@ -289,25 +277,26 @@ function PlanCard({
       </div>
 
       <div className="mt-5 flex items-baseline gap-1">
-        <span className="text-3xl font-semibold tracking-tight">{price === 0 ? "Free" : fmt(price)}</span>
-        {price > 0 && <span className="text-xs text-muted-foreground">/{billing === "monthly" ? "month" : "year"}</span>}
+        <span className="text-3xl font-semibold tracking-tight">{isTba ? "TBA" : price === 0 ? "Free" : fmt(price)}</span>
+        {!isTba && price > 0 && <span className="text-xs text-muted-foreground">/{billing === "monthly" ? "month" : "year"}</span>}
       </div>
-      {price > 0 && billing === "yearly" && (
+      {isTba && <p className="mt-1 text-[11px] text-muted-foreground">Pricing hasn't been finalized yet.</p>}
+      {!isTba && price > 0 && billing === "yearly" && (
         <p className="mt-1 text-[11px] text-muted-foreground">Billed yearly · works out to ₦{Math.round(price / 12).toLocaleString()}/mo</p>
       )}
 
       <button
         onClick={onSelect}
-        disabled={current}
+        disabled={current || isTba}
         className={`mt-5 w-full rounded-full px-4 py-2.5 text-sm font-semibold transition ${
-          current
+          current || isTba
             ? "cursor-default border border-border bg-muted text-muted-foreground"
             : highlighted
             ? "bg-primary text-primary-foreground hover:opacity-95"
             : "border border-border bg-card hover:bg-muted"
         }`}
       >
-        {current ? "Current plan" : id === "premium" ? "Upgrade to Premium" : "Continue on Free"}
+        {current ? "Current plan" : isTba ? "Coming soon" : id === "premium" ? "Upgrade to Premium" : "Continue on Free"}
       </button>
 
       <ul className="mt-5 space-y-2 text-sm">
