@@ -106,7 +106,6 @@ export type Database = {
           display_name: string | null
           full_name: string | null
           id: string
-          is_admin: boolean
           shop_name: string | null
           suspended: boolean
           updated_at: string
@@ -118,7 +117,6 @@ export type Database = {
           display_name?: string | null
           full_name?: string | null
           id: string
-          is_admin?: boolean
           shop_name?: string | null
           suspended?: boolean
           updated_at?: string
@@ -130,7 +128,6 @@ export type Database = {
           display_name?: string | null
           full_name?: string | null
           id?: string
-          is_admin?: boolean
           shop_name?: string | null
           suspended?: boolean
           updated_at?: string
@@ -247,10 +244,16 @@ export type Database = {
         Row: {
           active: boolean
           category: string
+          category_id: string | null
           created_at: string
+          description: string | null
           duration: string | null
+          duration_minutes: number | null
           id: string
+          image_url: string | null
+          is_active: boolean
           price: number
+          price_ngn: number | null
           provider_id: string
           title: string
           updated_at: string
@@ -258,10 +261,16 @@ export type Database = {
         Insert: {
           active?: boolean
           category?: string
+          category_id?: string | null
           created_at?: string
+          description?: string | null
           duration?: string | null
+          duration_minutes?: number | null
           id?: string
+          image_url?: string | null
+          is_active?: boolean
           price?: number
+          price_ngn?: number | null
           provider_id: string
           title: string
           updated_at?: string
@@ -269,10 +278,16 @@ export type Database = {
         Update: {
           active?: boolean
           category?: string
+          category_id?: string | null
           created_at?: string
+          description?: string | null
           duration?: string | null
+          duration_minutes?: number | null
           id?: string
+          image_url?: string | null
+          is_active?: boolean
           price?: number
+          price_ngn?: number | null
           provider_id?: string
           title?: string
           updated_at?: string
@@ -289,7 +304,9 @@ export type Database = {
       }
       bookings: {
         Row: {
+          address: string | null
           amount: number
+          buyer_id: string | null
           created_at: string
           customer_id: string
           id: string
@@ -299,7 +316,10 @@ export type Database = {
           payment_status: string
           paystack_reference: string | null
           payout_amount: number
+          photo_urls: string[] | null
           platform_fee: number
+          platform_fee_ngn: number | null
+          price_ngn: number | null
           provider_id: string
           released_at: string | null
           scheduled_at: string | null
@@ -310,7 +330,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          address?: string | null
           amount?: number
+          buyer_id?: string | null
           created_at?: string
           customer_id: string
           id?: string
@@ -320,7 +342,10 @@ export type Database = {
           payment_status?: string
           paystack_reference?: string | null
           payout_amount?: number
+          photo_urls?: string[] | null
           platform_fee?: number
+          platform_fee_ngn?: number | null
+          price_ngn?: number | null
           provider_id: string
           released_at?: string | null
           scheduled_at?: string | null
@@ -331,7 +356,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          address?: string | null
           amount?: number
+          buyer_id?: string | null
           created_at?: string
           customer_id?: string
           id?: string
@@ -341,7 +368,10 @@ export type Database = {
           payment_status?: string
           paystack_reference?: string | null
           payout_amount?: number
+          photo_urls?: string[] | null
           platform_fee?: number
+          platform_fee_ngn?: number | null
+          price_ngn?: number | null
           provider_id?: string
           released_at?: string | null
           scheduled_at?: string | null
@@ -416,6 +446,27 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -426,9 +477,13 @@ export type Database = {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
       }
+      has_role: {
+        Args: { _user_id: string; _role: Database["public"]["Enums"]["app_role"] }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "moderator" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
