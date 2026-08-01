@@ -67,9 +67,10 @@ type BookingRow = {
 };
 
 function mapBookingStatus(s: string): OrderStatus {
-  if (s === "New") return "Awaiting pro";
-  if (s === "In progress") return "Confirmed";
-  if (s === "Confirmed" || s === "Completed" || s === "Cancelled") return s;
+  if (s === "pending") return "Awaiting pro";
+  if (s === "accepted" || s === "in_progress" || s === "disputed") return "Confirmed";
+  if (s === "completed") return "Completed";
+  if (s === "cancelled" || s === "declined") return "Cancelled";
   return "Awaiting pro";
 }
 

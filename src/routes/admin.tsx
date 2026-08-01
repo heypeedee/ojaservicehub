@@ -91,13 +91,12 @@ function AdminPanel() {
         setChecking(false);
         return;
       }
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("is_admin")
-        .eq("id", session.user.id)
-        .maybeSingle();
+      const { data: hasAdminRole } = await supabase.rpc("has_role", {
+        _user_id: session.user.id,
+        _role: "admin",
+      });
       if (!active) return;
-      setIsAdmin(!!profile?.is_admin);
+      setIsAdmin(!!hasAdminRole);
       setChecking(false);
     }
     check();

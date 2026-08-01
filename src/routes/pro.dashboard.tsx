@@ -74,7 +74,7 @@ type Booking = {
   service: string;
   when: string;
   amount: number;
-  status: "New" | "Confirmed" | "In progress" | "Completed" | "Cancelled";
+  status: "pending" | "accepted" | "declined" | "in_progress" | "completed" | "cancelled" | "disputed";
   paymentStatus: "Unpaid" | "Paid" | "Released" | "Refunded";
   payoutAmount: number;
   platformFee: number;
@@ -203,6 +203,7 @@ function ProDashboard() {
           title: s.title,
           category: s.category,
           price: s.price,
+          price_ngn: Math.round(s.price),
           duration: s.duration,
           active: s.active,
         })
@@ -214,7 +215,7 @@ function ProDashboard() {
     } else {
       const { error } = await supabase
         .from("services")
-        .update({ title: s.title, category: s.category, price: s.price, duration: s.duration, active: s.active })
+        .update({ title: s.title, category: s.category, price: s.price, price_ngn: Math.round(s.price), duration: s.duration, active: s.active })
         .eq("id", s.id)
         .eq("provider_id", userId);
       if (!error) {
@@ -478,7 +479,7 @@ function Overview({
   messages: CustomerMsg[];
   onSection: (s: Section) => void;
 }) {
-  const upcoming = bookings.filter((b) => b.status === "Confirmed" || b.status === "New" || b.status === "In progress").slice(0, 4);
+  const upcoming = bookings.filter((b) => b.status === "accepted" || b.status === "pending" || b.status === "in_progress").slice(0, 4);
   const kpis = [
     { label: "Paid out to you", value: formatNaira(completedRevenue), sub: "All time", icon: TrendingUp, tint: "bg-brand-soft text-brand" },
     { label: "Pending payout", value: formatNaira(pendingRevenue), sub: "Escrow held", icon: Wallet, tint: "bg-orange/10 text-orange" },
@@ -943,7 +944,9 @@ function OrdersPanel({
 }) {
   const [tab, setTab] = useState<Booking["status"] | "all">("all");
   const filtered = useMemo(() => (tab === "all" ? bookings : bookings.filter((b) => b.status === tab)), [tab, bookings]);
-  const tabs: (Booking["status"] | "all")[] = ["all", "New", "Confirmed", "In progress", "Completed", "Cancelled"];
+  const statusValues: Booking["status"][] = ["pending", "accepted", "declined", "in_progress", "completed", "cancelled", "disputed"];
+  const tabs: (Booking["status"] | "all")[] = ["all", ...statusValues];
+  const statusLabel = (s: Booking["status"]) => (s === "in_progress" ? "In progress" : s.charAt(0).toUpperCase() + s.slice(1));
 
   return (
     <div className="space-y-6">
@@ -959,7 +962,7 @@ function OrdersPanel({
               onClick={() => setTab(t)}
               className={`px-3 py-2 text-xs font-semibold capitalize ${tab === t ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"}`}
             >
-              {t}
+              {t === "all" ? "All" : statusLabel(t)}
             </button>
           ))}
         </div>
@@ -982,11 +985,13 @@ function OrdersPanel({
                 onChange={(e) => onStatus(b.id, e.target.value as Booking["status"])}
                 className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold"
               >
-                {["New", "Confirmed", "In progress", "Completed", "Cancelled"].map((s) => (
-                  <option key={s}>{s}</option>
+                {statusValues.map((s) => (
+                  <option key={s} value={s}>
+                    {statusLabel(s)}
+                  </option>
                 ))}
               </select>
-              {b.status === "Completed" && b.paymentStatus === "Paid" && (
+              {b.status === "completed" && b.paymentStatus === "Paid" && (
                 <button
                   onClick={() => onRelease(b.id)}
                   disabled={releasingId === b.id}

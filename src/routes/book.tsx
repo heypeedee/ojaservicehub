@@ -82,7 +82,7 @@ function BookPage() {
           .from("services")
           .select("id, title, duration, price")
           .eq("provider_id", providerId)
-          .eq("active", true)
+          .eq("is_active", true)
           .order("created_at"),
         supabase.auth.getSession(),
       ]);
@@ -226,13 +226,16 @@ function BookPage() {
       .insert({
         provider_id: provider.id,
         customer_id: userId,
+        buyer_id: userId,
         service_id: service.id,
         service_title: service.name,
         amount: total,
+        price_ngn: Math.round(total),
         scheduled_at: scheduledAt,
         location: provider.area,
+        address: provider.area,
         notes: notes || null,
-        status: "New",
+        status: "pending",
       })
       .select("id")
       .single();

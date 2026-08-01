@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (bookingError || !booking) return json({ error: "Booking not found" }, 404);
     if (booking.provider_id !== user.id) return json({ error: "Not your booking" }, 403);
-    if (booking.status !== "Completed") return json({ error: "Job must be marked Completed first" }, 400);
+    if (booking.status !== "completed") return json({ error: "Job must be marked Completed first" }, 400);
     if (booking.payment_status !== "Paid") return json({ error: "This booking hasn't been paid for yet" }, 400);
 
     const { data: payout } = await admin
