@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Layers, Loader2, MapPin, Search, Star, X } from "lucide-react";
 import { OjaLogo } from "@/components/OjaLogo";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/map")({
   head: () => ({
@@ -59,56 +60,49 @@ type Pro = {
   image: string;
 };
 
-// Small jitter helper so seed pros scatter naturally around LGA centroids
+// Small jitter helper so multiple real pros sharing an LGA centroid don't
+// render as a single overlapping marker
 function j(base: number, spread = 0.012) {
   return base + (Math.random() - 0.5) * spread * 2;
 }
 
-const seedPros: Pro[] = (() => {
-  // deterministic pseudo-random via seed
-  let s = 42;
-  const rand = () => {
-    s = (s * 9301 + 49297) % 233280;
-    return s / 233280;
-  };
-  const crafts = [
-    { c: "Bridal Hair", p: "₦45,000", img: "https://images.unsplash.com/photo-1595916996826-be9ad7f0aabc?auto=format&fit=crop&w=200&q=80" },
-    { c: "Electrician", p: "₦12,500", img: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=200&q=80" },
-    { c: "Private Chef", p: "₦22,000", img: "https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=200&q=80" },
-    { c: "Tailor", p: "₦8,500", img: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=200&q=80" },
-    { c: "Plumber", p: "₦10,000", img: "https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?auto=format&fit=crop&w=200&q=80" },
-    { c: "Deep Cleaner", p: "₦18,000", img: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=200&q=80" },
-    { c: "Photographer", p: "₦75,000", img: "https://images.unsplash.com/photo-1554048612-b6a482bc67e5?auto=format&fit=crop&w=200&q=80" },
-    { c: "Personal Trainer", p: "₦15,000", img: "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?auto=format&fit=crop&w=200&q=80" },
-    { c: "Makeup Artist", p: "₦25,000", img: "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=200&q=80" },
-    { c: "AC Technician", p: "₦9,000", img: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=200&q=80" },
-  ];
-  const first = ["Adaeze", "Chinedu", "Kunle", "Zainab", "Femi", "Amaka", "Tunde", "Bola", "Ngozi", "Sade", "Kemi", "Ifeanyi", "Yemi", "Chika", "Segun", "Rita", "Uche", "Tolu", "Grace", "Wale"];
-  const last = ["Okoye", "Bala", "Adisa", "Musa", "Ojo", "Ike", "Adeyemi", "Bello", "Nwosu", "Oladipo", "Balogun", "Chukwu"];
-  const list: Pro[] = [];
-  LAGOS_LGAS.forEach((lga, li) => {
-    const count = 2 + Math.floor(rand() * 3); // 2–4 per LGA
-    for (let i = 0; i < count; i++) {
-      const c = crafts[Math.floor(rand() * crafts.length)];
-      const fn = first[Math.floor(rand() * first.length)];
-      const ln = last[Math.floor(rand() * last.length)];
-      list.push({
-        id: `${li}-${i}`,
-        name: `${fn} ${ln}`,
-        craft: c.c,
-        rating: Math.round((4.5 + rand() * 0.5) * 100) / 100,
-        reviews: 20 + Math.floor(rand() * 380),
-        price: c.p,
-        lga: lga.name,
-        lat: j(lga.center[0], 0.015),
-        lng: j(lga.center[1], 0.015),
-        verified: rand() > 0.25,
-        image: c.img,
-      });
-    }
-  });
-  return list;
-})();
+type ProviderRow = {
+  id: string;
+  business_name: string;
+  area: string;
+  rating: number;
+  review_count: number;
+  price_from: number;
+  verified: boolean;
+  categories: { name: string } | null;
+};
+
+// Real published providers only have a free-text `area` on file (no lat/lng
+// yet), so each one is placed at the centroid of whichever LGA name appears
+// in their area text. A provider whose area doesn't match any known LGA is
+// left off the map rather than guessing a location for it.
+function placeRealPros(rows: ProviderRow[]): Pro[] {
+  const placed: Pro[] = [];
+  for (const r of rows) {
+    const areaLower = r.area?.toLowerCase() ?? "";
+    const lga = LAGOS_LGAS.find((l) => areaLower.includes(l.name.toLowerCase()));
+    if (!lga) continue;
+    placed.push({
+      id: r.id,
+      name: r.business_name,
+      craft: r.categories?.name ?? "Service provider",
+      rating: r.rating,
+      reviews: r.review_count,
+      price: r.price_from > 0 ? `from ₦${Number(r.price_from).toLocaleString()}` : "Contact for pricing",
+      lga: lga.name,
+      lat: j(lga.center[0], 0.01),
+      lng: j(lga.center[1], 0.01),
+      verified: r.verified,
+      image: "",
+    });
+  }
+  return placed;
+}
 
 type GeoResult = { display_name: string; lat: string; lon: string };
 
@@ -122,6 +116,25 @@ function MapPage() {
   const [geoResults, setGeoResults] = useState<GeoResult[]>([]);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [pros, setPros] = useState<Pro[]>([]);
+  const [prosLoading, setProsLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function loadPros() {
+      const { data } = await supabase
+        .from("provider_profiles")
+        .select("id, business_name, area, rating, review_count, price_from, verified, categories(name)")
+        .eq("published", true);
+      if (!active) return;
+      setPros(placeRealPros((data as unknown as ProviderRow[]) ?? []));
+      setProsLoading(false);
+    }
+    loadPros();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const mapDivRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
@@ -132,7 +145,7 @@ function MapPage() {
 
   const filteredPros = useMemo(() => {
     const q = craftQuery.trim().toLowerCase();
-    return seedPros.filter((p) => {
+    return pros.filter((p) => {
       if (selectedLga && p.lga !== selectedLga) return false;
       if (verifiedOnly && !p.verified) return false;
       if (q && !(`${p.name} ${p.craft}`.toLowerCase().includes(q))) return false;
@@ -241,7 +254,14 @@ function MapPage() {
         .bindPopup(
           `<div style="font-family:Inter,system-ui;min-width:200px">
             <div style="display:flex;gap:10px;align-items:center;">
-              <img src="${p.image}" style="width:44px;height:44px;border-radius:12px;object-fit:cover"/>
+              ${p.image
+                ? `<img src="${p.image}" style="width:44px;height:44px;border-radius:12px;object-fit:cover"/>`
+                : `<div style="width:44px;height:44px;border-radius:12px;background:#E8F3EC;color:#0B6E3C;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px">${p.name
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((w) => w[0]?.toUpperCase() ?? "")
+                    .join("") || "?"}</div>`}
               <div>
                 <div style="font-weight:600;color:#202124">${p.name}</div>
                 <div style="font-size:12px;color:#5f6368">${p.craft} · ${p.lga}</div>
@@ -273,7 +293,7 @@ function MapPage() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selectedProId) return;
-    const pro = seedPros.find((p) => p.id === selectedProId);
+    const pro = pros.find((p) => p.id === selectedProId);
     if (pro) map.flyTo([pro.lat, pro.lng], 15, { duration: 0.6 });
   }, [selectedProId]);
 
@@ -352,8 +372,14 @@ function MapPage() {
             </span>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Find pros anywhere in Lagos</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Search any address and filter by local government area — {seedPros.length} pros mapped across all 20 LGAs.
+              Search any address and filter by local government area — {pros.length} real {pros.length === 1 ? "pro" : "pros"} mapped so far.
             </p>
+            {!prosLoading && pros.length === 0 && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Ọjà is early — no pros have a mappable area on file yet.{" "}
+                <Link to="/signup" className="font-semibold text-primary hover:underline">Be the first to join</Link>.
+              </p>
+            )}
           </div>
         </div>
 
@@ -493,7 +519,13 @@ function MapPage() {
                           : "border-border bg-background hover:border-primary/40"
                       }`}
                     >
-                      <img src={p.image} alt="" className="h-10 w-10 rounded-xl object-cover" />
+                      {p.image ? (
+                        <img src={p.image} alt="" className="h-10 w-10 rounded-xl object-cover" />
+                      ) : (
+                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-xs font-bold text-brand">
+                          {p.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?"}
+                        </div>
+                      )}
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold">{p.name}</p>
                         <p className="truncate text-[11px] text-muted-foreground">
