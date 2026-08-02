@@ -432,6 +432,7 @@ function MatchCard({ match, rank }: { match: Pro & { score: number; why: string[
           <div className="flex gap-2">
             <Link
               to="/messages"
+              search={{ conversationId: "" }}
               className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
             >
               <MessageCircle className="h-3.5 w-3.5" /> Chat

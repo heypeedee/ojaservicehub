@@ -240,7 +240,7 @@ function TopBar({ query, setQuery }: { query: string; setQuery: (v: string) => v
         </Link>
         <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
           <Link to="/dashboard" className="text-foreground">Overview</Link>
-          <Link to="/messages" className="hover:text-foreground">Messages</Link>
+          <Link to="/messages" search={{ conversationId: "" }} className="hover:text-foreground">Messages</Link>
           <Link to="/notifications" className="hover:text-foreground">Notifications</Link>
           <Link to="/pro/dashboard" className="hover:text-foreground">Business</Link>
         </nav>
@@ -401,6 +401,7 @@ function UpcomingBookings({ items }: { items: Order[] }) {
                 <span className="text-sm font-semibold">{formatNaira(b.amount)}</span>
                 <Link
                   to="/messages"
+                  search={{ conversationId: "" }}
                   className="rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-semibold text-foreground hover:border-primary/40"
                 >
                   Message

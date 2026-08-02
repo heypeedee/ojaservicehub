@@ -15,13 +15,16 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/messages")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    conversationId: typeof search.conversationId === "string" ? search.conversationId : "",
+  }),
   head: () => ({
     meta: [
       { title: "Messages · Ọjà" },
       {
         name: "description",
         content:
-          "Real-time chat between customers and providers on Ọjà — live typing, image sharing, read receipts.",
+          "Real-time chat between customers and providers on Ọjà — text and image sharing.",
       },
       { property: "og:title", content: "Messages · Ọjà" },
       { property: "og:description", content: "Real-time chat on Ọjà." },
@@ -246,7 +249,8 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
   const [me, setMe] = useState<Profile | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [participantsByConvo, setParticipantsByConvo] = useState<Record<string, Profile[]>>({});
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const { conversationId } = Route.useSearch();
+  const [activeId, setActiveId] = useState<string | null>(conversationId || null);
   const [loading, setLoading] = useState(true);
   const [showNewChat, setShowNewChat] = useState(false);
 
@@ -322,7 +326,7 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
             <Link to="/dashboard" className="hover:text-foreground">Dashboard</Link>
-            <Link to="/messages" className="text-foreground">Messages</Link>
+            <Link to="/messages" search={{ conversationId: "" }} className="text-foreground">Messages</Link>
             <Link to="/notifications" className="hover:text-foreground">Notifications</Link>
           </nav>
           <div className="flex items-center gap-3 text-xs">

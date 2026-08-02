@@ -73,6 +73,7 @@ type Booking = {
   customer: string;
   service: string;
   when: string;
+  rawDate: string;
   amount: number;
   status: "pending" | "accepted" | "declined" | "in_progress" | "completed" | "cancelled" | "disputed";
   paymentStatus: "Unpaid" | "Paid" | "Released" | "Refunded";
@@ -98,34 +99,39 @@ type BookingRow = {
   payout_amount: number;
   platform_fee: number;
   scheduled_at: string | null;
+  updated_at: string;
   location: string | null;
   customer_id: string;
   profiles: { display_name: string | null; full_name: string | null } | null;
 };
 
-const initialMessages: CustomerMsg[] = [
-  { id: "m1", customer: "Amaka N.", preview: "Can we move the trial to 10am?", when: "12m", unread: true, avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=100&q=80" },
-  { id: "m2", customer: "Tolu B.", preview: "Thanks! Sent the reference photos.", when: "1h", unread: true, avatar: "https://images.unsplash.com/photo-1541101767792-f9b2b1c4f127?auto=format&fit=crop&w=100&q=80" },
-  { id: "m3", customer: "Ijeoma R.", preview: "See you tomorrow 🙌", when: "3h", unread: false, avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=100&q=80" },
-];
-
-const revenueSeries = [180, 210, 165, 240, 220, 280, 260, 310, 340, 300, 355, 410];
 const monthLabels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
-
 const formatNaira = (n: number) => `₦${n.toLocaleString("en-NG")}`;
+
+function timeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d`;
+}
 
 function ProDashboard() {
   const [section, setSection] = useState<Section>("overview");
   const [userId, setUserId] = useState<string | null>(null);
   const [shopName, setShopName] = useState<string>("Your shop");
   const [verified, setVerified] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
   const [loadingData, setLoadingData] = useState(true);
 
   const [services, setServices] = useState<Service[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [messages, setMessages] = useState<CustomerMsg[]>(initialMessages);
+  const [messages, setMessages] = useState<CustomerMsg[]>([]);
   const [editService, setEditService] = useState<Service | null>(null);
-  const [replyTarget, setReplyTarget] = useState<CustomerMsg | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -142,11 +148,11 @@ function ProDashboard() {
       }
 
       const [{ data: profile }, { data: svcRows }, { data: bookingRows }] = await Promise.all([
-        supabase.from("provider_profiles").select("business_name, verified").eq("id", uid).maybeSingle(),
+        supabase.from("provider_profiles").select("business_name, verified, rating, review_count").eq("id", uid).maybeSingle(),
         supabase.from("services").select("*").eq("provider_id", uid).order("created_at"),
         supabase
           .from("bookings")
-          .select("id, service_title, amount, status, payment_status, payout_amount, platform_fee, scheduled_at, location, customer_id, profiles(display_name, full_name)")
+          .select("id, service_title, amount, status, payment_status, payout_amount, platform_fee, scheduled_at, updated_at, location, customer_id, profiles(display_name, full_name)")
           .eq("provider_id", uid)
           .order("created_at", { ascending: false }),
       ]);
@@ -155,6 +161,8 @@ function ProDashboard() {
       if (profile) {
         setShopName(profile.business_name);
         setVerified(profile.verified);
+        setRating(Number(profile.rating));
+        setReviewCount(profile.review_count);
       }
       setServices(
         (svcRows ?? []).map((s) => ({
@@ -172,6 +180,7 @@ function ProDashboard() {
           customer: b.profiles?.display_name || b.profiles?.full_name || "Customer",
           service: b.service_title,
           when: b.scheduled_at ? new Date(b.scheduled_at).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" }) : "—",
+          rawDate: b.updated_at,
           amount: Number(b.amount),
           status: b.status as Booking["status"],
           paymentStatus: b.payment_status as Booking["paymentStatus"],
@@ -179,6 +188,61 @@ function ProDashboard() {
           platformFee: Number(b.platform_fee),
         }))
       );
+
+      // Real customer inbox preview: conversations this provider is part of,
+      // the other participant's name/avatar, and their latest message.
+      const { data: myConvoRows } = await supabase
+        .from("conversation_participants")
+        .select("conversation_id")
+        .eq("user_id", uid);
+      const convoIds = (myConvoRows ?? []).map((r) => r.conversation_id);
+
+      if (convoIds.length > 0) {
+        const [{ data: parts }, { data: recentMsgs }] = await Promise.all([
+          supabase.from("conversation_participants").select("conversation_id, user_id").in("conversation_id", convoIds),
+          supabase
+            .from("messages")
+            .select("conversation_id, body, sender_id, created_at")
+            .in("conversation_id", convoIds)
+            .order("created_at", { ascending: false }),
+        ]);
+        const otherUserIds = Array.from(new Set((parts ?? []).filter((p) => p.user_id !== uid).map((p) => p.user_id)));
+        const { data: otherProfiles } = otherUserIds.length
+          ? await supabase.from("profiles").select("id, display_name, full_name, avatar_url").in("id", otherUserIds)
+          : { data: [] as { id: string; display_name: string | null; full_name: string | null; avatar_url: string | null }[] };
+        const profileById = new Map((otherProfiles ?? []).map((p) => [p.id, p]));
+        const otherByConvo = new Map<string, string>();
+        (parts ?? []).forEach((p) => {
+          if (p.user_id !== uid) otherByConvo.set(p.conversation_id, p.user_id);
+        });
+        const latestByConvo = new Map<string, { body: string | null; sender_id: string; created_at: string }>();
+        (recentMsgs ?? []).forEach((m) => {
+          if (!latestByConvo.has(m.conversation_id)) latestByConvo.set(m.conversation_id, m);
+        });
+
+        const inbox: CustomerMsg[] = convoIds
+          .map((cid) => {
+            const otherId = otherByConvo.get(cid);
+            const profile = otherId ? profileById.get(otherId) : undefined;
+            const latest = latestByConvo.get(cid);
+            if (!latest) return null;
+            const name = profile?.display_name || profile?.full_name || "Customer";
+            return {
+              id: cid,
+              customer: name,
+              preview: latest.body || "Sent an image",
+              when: timeAgo(latest.created_at),
+              rawWhen: latest.created_at,
+              unread: latest.sender_id !== uid,
+              avatar: profile?.avatar_url || "",
+            };
+          })
+          .filter((m): m is CustomerMsg & { rawWhen: string } => m !== null)
+          .sort((a, b) => (a.rawWhen < b.rawWhen ? 1 : -1))
+          .map(({ rawWhen, ...m }) => m);
+        setMessages(inbox);
+      }
+
       setLoadingData(false);
     }
     load();
@@ -342,15 +406,16 @@ function ProDashboard() {
             />
           )}
           {section === "customers" && (
-            <CustomersPanel messages={messages} onReply={(m) => { markRead(m.id); setReplyTarget(m); }} />
+            <CustomersPanel messages={messages} onReply={(m) => markRead(m.id)} />
           )}
-          {section === "analytics" && <AnalyticsPanel />}
+          {section === "analytics" && (
+            <AnalyticsPanel bookings={bookings} services={services} rating={rating} reviewCount={reviewCount} />
+          )}
           {section === "settings" && <SettingsPanel />}
         </main>
       </div>
 
       {editService && <ServiceEditor service={editService} onClose={() => setEditService(null)} onSave={saveService} />}
-      {replyTarget && <ReplyModal message={replyTarget} onClose={() => setReplyTarget(null)} />}
     </div>
   );
 }
@@ -372,6 +437,7 @@ function Topbar({ unread }: { unread: number }) {
         <div className="flex items-center gap-2">
           <Link
             to="/messages"
+            search={{ conversationId: "" }}
             className="relative inline-flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground hover:border-primary/40"
           >
             <MessageSquare className="h-3.5 w-3.5" /> Inbox
@@ -530,21 +596,45 @@ function Overview({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">Revenue · last 12 months</h2>
-              <p className="text-xs text-muted-foreground">Completed bookings only, in thousands ₦.</p>
+              <p className="text-xs text-muted-foreground">Released payouts only.</p>
             </div>
-            <span className="text-2xl font-semibold">{formatNaira(revenueSeries.reduce((a, b) => a + b, 0) * 1000)}</span>
+            <span className="text-2xl font-semibold">{formatNaira(completedRevenue)}</span>
           </div>
-          <div className="mt-6 grid h-48 grid-cols-12 items-end gap-2">
-            {revenueSeries.map((v, i) => (
-              <div key={i} className="flex h-full flex-col items-center justify-end gap-2">
-                <div
-                  className="w-full rounded-t-md bg-gradient-to-t from-primary to-[oklch(0.62_0.15_155)]"
-                  style={{ height: `${(v / Math.max(...revenueSeries)) * 100}%` }}
-                />
-                <span className="text-[10px] text-muted-foreground">{monthLabels[i]}</span>
-              </div>
-            ))}
-          </div>
+          {(() => {
+            const now = new Date();
+            const months = Array.from({ length: 12 }).map((_, i) => {
+              const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
+              return { key: `${d.getFullYear()}-${d.getMonth()}`, label: monthLabels[d.getMonth()] };
+            });
+            const totals = months.map((m) =>
+              bookings
+                .filter((b) => b.paymentStatus === "Released" && `${new Date(b.rawDate).getFullYear()}-${new Date(b.rawDate).getMonth()}` === m.key)
+                .reduce((s, b) => s + b.payoutAmount, 0)
+            );
+            const max = Math.max(1, ...totals);
+            const hasAny = totals.some((v) => v > 0);
+            return (
+              <>
+                {!hasAny && (
+                  <p className="mt-4 rounded-2xl bg-muted/50 p-3 text-center text-xs text-muted-foreground">
+                    No released payouts yet — this fills in as you complete jobs and release payment.
+                  </p>
+                )}
+                <div className="mt-6 grid h-48 grid-cols-12 items-end gap-2">
+                  {totals.map((v, i) => (
+                    <div key={i} className="flex h-full flex-col items-center justify-end gap-2">
+                      <div
+                        className={`w-full rounded-t-md ${v > 0 ? "bg-gradient-to-t from-primary to-[oklch(0.62_0.15_155)]" : "bg-muted"}`}
+                        style={{ height: v > 0 ? `${(v / max) * 100}%` : "3%" }}
+                        title={v > 0 ? `₦${v.toLocaleString()}` : undefined}
+                      />
+                      <span className="text-[10px] text-muted-foreground">{months[i].label}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            );
+          })()}
         </section>
 
         <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
@@ -993,7 +1083,7 @@ function OrdersPanel({
                   {releasingId === b.id ? "Releasing…" : `Release ${formatNaira(b.payoutAmount)}`}
                 </button>
               )}
-              <Link to="/messages" className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold hover:border-primary/40">
+              <Link to="/messages" search={{ conversationId: "" }} className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold hover:border-primary/40">
                 Message
               </Link>
             </li>
@@ -1135,63 +1225,40 @@ function CustomersPanel({ messages, onReply }: { messages: CustomerMsg[]; onRepl
     <div className="space-y-6">
       <PanelHeader title="Customer inbox" desc="Respond to buyers directly. Fast replies boost your Instant Match ranking." />
       <div className="rounded-3xl border border-border bg-card p-2 shadow-sm">
-        <ul className="divide-y divide-border">
-          {messages.map((m) => (
-            <li key={m.id} className="flex items-center gap-3 p-4">
-              <img src={m.avatar} className="h-11 w-11 rounded-full object-cover" alt="" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold">{m.customer}</p>
-                  {m.unread && <span className="rounded-full bg-orange px-1.5 text-[9px] font-bold text-white">NEW</span>}
-                </div>
-                <p className="truncate text-sm text-muted-foreground">{m.preview}</p>
-              </div>
-              <span className="text-[11px] text-muted-foreground">{m.when}</span>
-              <button
-                onClick={() => onReply(m)}
-                className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
-              >
-                <Reply className="h-3 w-3" /> Reply
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
-
-function ReplyModal({ message, onClose }: { message: CustomerMsg; onClose: () => void }) {
-  const [text, setText] = useState("");
-  const [sent, setSent] = useState(false);
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-3xl bg-background p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-3">
-          <img src={message.avatar} className="h-10 w-10 rounded-full object-cover" alt="" />
-          <div className="flex-1">
-            <p className="font-semibold">{message.customer}</p>
-            <p className="text-xs text-muted-foreground">{message.preview}</p>
-          </div>
-          <button onClick={onClose}><X className="h-5 w-5" /></button>
-        </div>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={4}
-          placeholder="Write a reply…"
-          className="mt-4 w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
-        />
-        {sent ? (
-          <p className="mt-3 rounded-2xl bg-brand-soft px-3 py-2 text-xs font-semibold text-brand">Reply sent ✓</p>
+        {messages.length === 0 ? (
+          <p className="p-8 text-center text-sm text-muted-foreground">
+            No messages yet — they'll show up here once a customer reaches out.
+          </p>
         ) : (
-          <button
-            onClick={() => setSent(true)}
-            disabled={!text.trim()}
-            className="mt-4 w-full rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-          >
-            Send reply
-          </button>
+          <ul className="divide-y divide-border">
+            {messages.map((m) => (
+              <li key={m.id} className="flex items-center gap-3 p-4">
+                {m.avatar ? (
+                  <img src={m.avatar} className="h-11 w-11 rounded-full object-cover" alt="" />
+                ) : (
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-soft text-sm font-semibold text-brand">
+                    {m.customer.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?"}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold">{m.customer}</p>
+                    {m.unread && <span className="rounded-full bg-orange px-1.5 text-[9px] font-bold text-white">NEW</span>}
+                  </div>
+                  <p className="truncate text-sm text-muted-foreground">{m.preview}</p>
+                </div>
+                <span className="text-[11px] text-muted-foreground">{m.when}</span>
+                <Link
+                  to="/messages"
+                  search={{ conversationId: m.id }}
+                  onClick={() => onReply(m)}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
+                >
+                  <Reply className="h-3 w-3" /> Reply
+                </Link>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>
@@ -1200,57 +1267,88 @@ function ReplyModal({ message, onClose }: { message: CustomerMsg; onClose: () =>
 
 /* ---------- Analytics ---------- */
 
-function AnalyticsPanel() {
-  const funnel = [
-    { label: "Shop views", value: 3820 },
-    { label: "Enquiries", value: 412 },
-    { label: "Bookings", value: 178 },
-    { label: "Completed", value: 164 },
-    { label: "5★ reviews", value: 141 },
-  ];
-  const topServices = [
-    { name: "Bridal Hair & Makeup", bookings: 62, revenue: 2790000 },
-    { name: "Signature party glam", bookings: 74, revenue: 1850000 },
-    { name: "Bridal trial", bookings: 42, revenue: 630000 },
-  ];
-  const max = Math.max(...funnel.map((f) => f.value));
+function AnalyticsPanel({
+  bookings,
+  services,
+  rating,
+  reviewCount,
+}: {
+  bookings: Booking[];
+  services: Service[];
+  rating: number;
+  reviewCount: number;
+}) {
+  const statusOrder: Booking["status"][] = ["pending", "accepted", "in_progress", "completed", "cancelled", "declined", "disputed"];
+  const statusCounts = statusOrder
+    .map((s) => ({ label: s === "in_progress" ? "In progress" : s.charAt(0).toUpperCase() + s.slice(1), value: bookings.filter((b) => b.status === s).length }))
+    .filter((s) => s.value > 0);
+  const max = Math.max(1, ...statusCounts.map((f) => f.value));
+
+  const revenueByService = new Map<string, { bookings: number; revenue: number }>();
+  bookings.forEach((b) => {
+    const cur = revenueByService.get(b.service) ?? { bookings: 0, revenue: 0 };
+    cur.bookings += 1;
+    if (b.paymentStatus === "Paid" || b.paymentStatus === "Released") cur.revenue += b.amount;
+    revenueByService.set(b.service, cur);
+  });
+  const topServices = Array.from(revenueByService.entries())
+    .map(([name, v]) => ({ name, ...v }))
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5);
+
+  const customerCounts = new Map<string, number>();
+  bookings.forEach((b) => customerCounts.set(b.customer, (customerCounts.get(b.customer) ?? 0) + 1));
+  const repeatCustomers = Array.from(customerCounts.values()).filter((c) => c > 1).length;
+  const totalCustomers = customerCounts.size;
+  const repeatPct = totalCustomers > 0 ? Math.round((repeatCustomers / totalCustomers) * 100) : 0;
+
   return (
     <div className="space-y-6">
-      <PanelHeader title="Analytics & insights" desc="Understand where your customers come from and what makes them book." />
+      <PanelHeader title="Analytics & insights" desc="Real numbers from your actual bookings — no estimates." />
       <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-        <h2 className="text-lg font-semibold">Conversion funnel · last 30 days</h2>
-        <ul className="mt-4 space-y-3">
-          {funnel.map((f) => (
-            <li key={f.label}>
-              <div className="flex items-center justify-between text-sm">
-                <span>{f.label}</span>
-                <span className="font-semibold">{f.value.toLocaleString()}</span>
-              </div>
-              <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-gradient-to-r from-primary to-[oklch(0.62_0.15_155)]" style={{ width: `${(f.value / max) * 100}%` }} />
-              </div>
-            </li>
-          ))}
-        </ul>
+        <h2 className="text-lg font-semibold">Bookings by status</h2>
+        {statusCounts.length === 0 ? (
+          <p className="mt-4 text-sm text-muted-foreground">No bookings yet — this fills in once customers start booking you.</p>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {statusCounts.map((f) => (
+              <li key={f.label}>
+                <div className="flex items-center justify-between text-sm">
+                  <span>{f.label}</span>
+                  <span className="font-semibold">{f.value.toLocaleString()}</span>
+                </div>
+                <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-gradient-to-r from-primary to-[oklch(0.62_0.15_155)]" style={{ width: `${(f.value / max) * 100}%` }} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
       <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Top services</h2>
-        <ul className="mt-4 divide-y divide-border">
-          {topServices.map((t) => (
-            <li key={t.name} className="flex items-center justify-between py-3">
-              <div>
-                <p className="font-semibold">{t.name}</p>
-                <p className="text-[11px] text-muted-foreground">{t.bookings} bookings</p>
-              </div>
-              <span className="text-sm font-semibold">{formatNaira(t.revenue)}</span>
-            </li>
-          ))}
-        </ul>
+        {topServices.length === 0 ? (
+          <p className="mt-4 text-sm text-muted-foreground">
+            {services.length === 0 ? "Add a service to start tracking performance." : "No bookings yet for your services."}
+          </p>
+        ) : (
+          <ul className="mt-4 divide-y divide-border">
+            {topServices.map((t) => (
+              <li key={t.name} className="flex items-center justify-between py-3">
+                <div>
+                  <p className="font-semibold">{t.name}</p>
+                  <p className="text-[11px] text-muted-foreground">{t.bookings} booking{t.bookings === 1 ? "" : "s"}</p>
+                </div>
+                <span className="text-sm font-semibold">{formatNaira(t.revenue)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
       <section className="grid gap-4 md:grid-cols-3">
-        <MiniStat label="Average rating" value="4.98" hint="Across 141 reviews" icon={<Star className="h-4 w-4 fill-gold text-gold" />} />
-        <MiniStat label="Response time" value="6 min" hint="Faster than 92% of pros" icon={<MessageSquare className="h-4 w-4 text-brand" />} />
-        <MiniStat label="Repeat customers" value="38%" hint="+9% MoM" icon={<Gift className="h-4 w-4 text-orange" />} />
+        <MiniStat label="Average rating" value={rating > 0 ? rating.toFixed(2) : "New"} hint={`Across ${reviewCount} review${reviewCount === 1 ? "" : "s"}`} icon={<Star className="h-4 w-4 fill-gold text-gold" />} />
+        <MiniStat label="Total bookings" value={String(bookings.length)} hint="All time" icon={<MessageSquare className="h-4 w-4 text-brand" />} />
+        <MiniStat label="Repeat customers" value={totalCustomers > 0 ? `${repeatPct}%` : "—"} hint={totalCustomers > 0 ? `${repeatCustomers} of ${totalCustomers} customers` : "No customers yet"} icon={<Gift className="h-4 w-4 text-orange" />} />
       </section>
     </div>
   );
