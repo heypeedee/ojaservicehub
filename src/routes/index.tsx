@@ -470,7 +470,7 @@ function RecentJobs() {
       const { data } = await supabase
         .from("bookings")
         .select("id, service_title, updated_at, provider_profiles(business_name, area)")
-        .eq("status", "Completed")
+        .eq("status", "completed")
         .order("updated_at", { ascending: false })
         .limit(4);
       if (!active) return;

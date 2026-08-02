@@ -171,7 +171,7 @@ function ProDashboard() {
         (svcRows ?? []).map((s) => ({
           id: s.id,
           title: s.title,
-          category: s.category,
+          category: s.category ?? "",
           price: Number(s.price),
           duration: s.duration ?? "—",
           active: s.active,
@@ -277,7 +277,7 @@ function ProDashboard() {
         .select()
         .single();
       if (!error && data) {
-        setServices((prev) => [...prev, { id: data.id, title: data.title, category: data.category, price: Number(data.price), duration: data.duration ?? "—", active: data.active }]);
+        setServices((prev) => [...prev, { id: data.id, title: data.title, category: data.category ?? "", price: Number(data.price), duration: data.duration ?? "—", active: data.active }]);
       }
     } else {
       const { error } = await supabase

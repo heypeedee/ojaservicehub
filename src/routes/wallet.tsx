@@ -77,7 +77,7 @@ function WalletPage() {
         (bookings ?? []).map((b) => ({
           id: b.id,
           status: b.payment_status as "Paid" | "Released",
-          title: b.service_title,
+          title: b.service_title ?? "Service",
           when: new Date(b.updated_at).toLocaleDateString("en-NG", { month: "short", day: "numeric" }),
           amount: Number(b.payout_amount),
         }))
