@@ -4,6 +4,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   BarChart3,
+  LogOut,
   Briefcase,
   Calendar,
   CheckCircle2,
@@ -126,6 +127,7 @@ function ProDashboard() {
   const [verified, setVerified] = useState(false);
   const [rating, setRating] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
+  const [shopCategory, setShopCategory] = useState("");
   const [loadingData, setLoadingData] = useState(true);
 
   const [services, setServices] = useState<Service[]>([]);
@@ -148,7 +150,7 @@ function ProDashboard() {
       }
 
       const [{ data: profile }, { data: svcRows }, { data: bookingRows }] = await Promise.all([
-        supabase.from("provider_profiles").select("business_name, verified, rating, review_count").eq("id", uid).maybeSingle(),
+        supabase.from("provider_profiles").select("business_name, verified, rating, review_count, categories(name)").eq("id", uid).maybeSingle(),
         supabase.from("services").select("*").eq("provider_id", uid).order("created_at"),
         supabase
           .from("bookings")
@@ -163,6 +165,7 @@ function ProDashboard() {
         setVerified(profile.verified);
         setRating(Number(profile.rating));
         setReviewCount(profile.review_count);
+        setShopCategory((profile as any).categories?.name ?? "");
       }
       setServices(
         (svcRows ?? []).map((s) => ({
@@ -380,7 +383,7 @@ function ProDashboard() {
                 setEditService({
                   id: crypto.randomUUID(),
                   title: "",
-                  category: "Beauty",
+                  category: shopCategory || "Other",
                   price: 0,
                   duration: "1 hr",
                   active: true,
@@ -415,7 +418,7 @@ function ProDashboard() {
         </main>
       </div>
 
-      {editService && <ServiceEditor service={editService} onClose={() => setEditService(null)} onSave={saveService} />}
+      {editService && <ServiceEditor service={editService} shopCategory={shopCategory} onClose={() => setEditService(null)} onSave={saveService} />}
     </div>
   );
 }
@@ -514,6 +517,13 @@ function Sidebar({
             );
           })}
         </nav>
+        <button
+          onClick={() => supabase.auth.signOut().then(() => window.location.assign("/"))}
+          className="mt-2 flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-destructive"
+        >
+          <LogOut className="h-4 w-4" />
+          <span className="flex-1 text-left">Sign out</span>
+        </button>
       </div>
     </aside>
   );
@@ -969,8 +979,18 @@ function ServicesPanel({
   );
 }
 
-function ServiceEditor({ service, onClose, onSave }: { service: Service; onClose: () => void; onSave: (s: Service) => void }) {
-  const [draft, setDraft] = useState(service);
+function ServiceEditor({
+  service,
+  shopCategory,
+  onClose,
+  onSave,
+}: {
+  service: Service;
+  shopCategory: string;
+  onClose: () => void;
+  onSave: (s: Service) => void;
+}) {
+  const [draft, setDraft] = useState({ ...service, category: shopCategory || service.category });
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={onClose}>
       <div className="w-full max-w-lg rounded-3xl bg-background p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -987,16 +1007,17 @@ function ServiceEditor({ service, onClose, onSave }: { service: Service; onClose
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Category">
-              <select value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} className={inputClass}>
-                {["Beauty", "Food", "Home", "Fashion", "Repairs", "Events", "Add-on", "Other"].map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
+              <div className={`${inputClass} flex items-center bg-muted/50 text-muted-foreground`}>
+                {draft.category || "Set your shop category in Business profile first"}
+              </div>
             </Field>
             <Field label="Duration">
               <input value={draft.duration} onChange={(e) => setDraft({ ...draft, duration: e.target.value })} className={inputClass} />
             </Field>
           </div>
+          <p className="-mt-1 text-[11px] text-muted-foreground">
+            Services are listed under your shop's category. To change it, update your Business profile.
+          </p>
           <Field label="Price (₦)">
             <input type="number" min={0} value={draft.price} onChange={(e) => setDraft({ ...draft, price: Number(e.target.value) })} className={inputClass} />
           </Field>

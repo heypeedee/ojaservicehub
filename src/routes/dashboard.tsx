@@ -1,9 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   ArrowUpRight,
   CalendarDays,
+  LogOut,
   CheckCircle2,
   Clock,
   Coins,
@@ -232,6 +233,7 @@ function BuyerDashboard() {
 }
 
 function TopBar({ query, setQuery }: { query: string; setQuery: (v: string) => void }) {
+  const navigate = useNavigate();
   return (
     <div className="sticky top-0 z-30 border-b border-border/60 bg-background/80 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
@@ -247,8 +249,7 @@ function TopBar({ query, setQuery }: { query: string; setQuery: (v: string) => v
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            const q = encodeURIComponent(query.trim());
-            if (q) window.location.href = `/search?q=${q}`;
+            navigate({ to: "/search", search: { q: query.trim() } });
           }}
           className="hidden lg:flex items-center gap-2 rounded-full border border-border bg-background pl-3 pr-1 py-1 w-80"
         >
@@ -263,13 +264,22 @@ function TopBar({ query, setQuery }: { query: string; setQuery: (v: string) => v
             Search
           </button>
         </form>
-        <Link
-          to="/search"
-          search={{ q: "" }}
-          className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-95 lg:hidden"
-        >
-          <Search className="h-4 w-4" /> Find
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/search"
+            search={{ q: "" }}
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-95 lg:hidden"
+          >
+            <Search className="h-4 w-4" /> Find
+          </Link>
+          <button
+            onClick={() => supabase.auth.signOut().then(() => navigate({ to: "/" }))}
+            title="Sign out"
+            className="grid h-9 w-9 place-items-center rounded-full border border-border text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
   );
