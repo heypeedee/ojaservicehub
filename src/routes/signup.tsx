@@ -126,6 +126,15 @@ function SignupPage() {
     navigate({ to: "/pro/dashboard", replace: true });
   }
 
+  async function handleGoogleSignIn() {
+    setAuthError(null);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: typeof window !== "undefined" ? `${window.location.origin}/dashboard` : undefined },
+    });
+    if (error) setAuthError(error.message);
+  }
+
   async function handleSendReset() {
     setAuthError(null);
     if (!forgotEmail) {
@@ -435,6 +444,16 @@ function SignupPage() {
           <h1 className="text-3xl font-semibold tracking-tight">Sign in</h1>
           <p className="mt-2 text-muted-foreground">Welcome back to Ọjà.</p>
           <div className="mt-6 rounded-3xl border border-border bg-card p-6 shadow-sm">
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-muted"
+            >
+              <GoogleIcon /> Continue with Google
+            </button>
+            <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="h-px flex-1 bg-border" /> or with email <span className="h-px flex-1 bg-border" />
+            </div>
             <div className="grid gap-3">
               <Field label="Email">
                 <input value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} type="email" className={inputCls} placeholder="you@email.com" />
@@ -810,6 +829,17 @@ function StepHead({ title, sub }: { title: string; sub: string }) {
       <h2 className="text-lg font-semibold">{title}</h2>
       <p className="text-sm text-muted-foreground">{sub}</p>
     </div>
+  );
+}
+
+function GoogleIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" width="18" height="18">
+      <path fill="#4285F4" d="M23.52 12.27c0-.82-.07-1.6-.2-2.36H12v4.47h6.47c-.28 1.5-1.13 2.77-2.4 3.62v3h3.88c2.27-2.09 3.57-5.17 3.57-8.73z" />
+      <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.9l-3.88-3c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.95H1.27v3.1C3.25 21.3 7.29 24 12 24z" />
+      <path fill="#FBBC05" d="M5.27 14.3c-.24-.72-.38-1.49-.38-2.3s.14-1.58.38-2.3v-3.1H1.27A11.96 11.96 0 000 12c0 1.93.46 3.76 1.27 5.4l4-3.1z" />
+      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0 7.29 0 3.25 2.7 1.27 6.6l4 3.1C6.22 6.86 8.87 4.75 12 4.75z" />
+    </svg>
   );
 }
 
