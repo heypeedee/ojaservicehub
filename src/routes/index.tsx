@@ -152,7 +152,7 @@ function Hero() {
         className="absolute inset-0 -z-10"
         style={{
           background:
-            "radial-gradient(70% 55% at 12% 8%, oklch(0.965 0.05 155 / 0.95), transparent 62%), radial-gradient(55% 45% at 92% 18%, oklch(0.94 0.12 78 / 0.55), transparent 60%), linear-gradient(180deg, oklch(1 0 0) 0%, oklch(0.985 0.004 155) 100%)",
+            "radial-gradient(70% 55% at 12% 8%, oklch(0.965 0.05 155 / 0.95), transparent 62%), radial-gradient(60% 50% at 92% 14%, oklch(0.86 0.15 78 / 0.7), transparent 62%), radial-gradient(40% 35% at 78% 55%, oklch(0.78 0.16 55 / 0.35), transparent 65%), linear-gradient(180deg, oklch(1 0 0) 0%, oklch(0.985 0.004 155) 100%)",
         }}
       />
       <div className="mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 sm:pb-28 sm:pt-24 lg:px-8">
@@ -520,11 +520,11 @@ function RecentJobs() {
               ))}
           </ul>
         </div>
-        <div className="relative overflow-hidden rounded-[2rem] border border-primary/20 bg-gradient-to-br from-primary via-primary to-[oklch(0.36_0.11_155)] p-10 text-primary-foreground shadow-[0_30px_80px_-40px_oklch(0.46_0.13_155/0.6)]">
-          <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-gold/30 blur-3xl" />
-          <div className="absolute -bottom-20 -left-16 h-56 w-56 rounded-full bg-orange/25 blur-3xl" />
+        <div className="relative overflow-hidden rounded-[2rem] border border-orange/20 bg-gradient-to-br from-orange via-orange to-gold p-10 text-charcoal shadow-[0_30px_80px_-40px_oklch(0.72_0.18_55/0.6)]">
+          <div className="absolute -right-16 -top-16 h-56 w-56 rounded-full bg-brand/30 blur-3xl" />
+          <div className="absolute -bottom-20 -left-16 h-56 w-56 rounded-full bg-white/40 blur-3xl" />
           <h3 className="text-3xl font-semibold">Instant Match</h3>
-          <p className="mt-3 max-w-md text-primary-foreground/85">
+          <p className="mt-3 max-w-md text-charcoal/80">
             Describe what you need in your own words. We rank the best pros by availability, distance,
             rating and price — matches in seconds.
           </p>
@@ -536,16 +536,16 @@ function RecentJobs() {
             ].map((q) => (
               <div
                 key={q}
-                className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3.5 text-sm ring-1 ring-white/15 backdrop-blur"
+                className="flex items-center gap-3 rounded-2xl bg-white/30 px-4 py-3.5 text-sm ring-1 ring-white/40 backdrop-blur"
               >
-                <Sparkles className="h-4 w-4 text-gold" />
-                <span className="text-primary-foreground/95">{q}</span>
+                <Sparkles className="h-4 w-4 text-brand" />
+                <span className="text-charcoal/90">{q}</span>
               </div>
             ))}
           </div>
           <Link
             to="/instant-match"
-            className="mt-8 inline-flex items-center gap-2 rounded-full bg-background px-6 py-3 text-sm font-semibold text-primary shadow-lg transition hover:-translate-y-0.5"
+            className="mt-8 inline-flex items-center gap-2 rounded-full bg-charcoal px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5"
           >
             Try Instant Match <ArrowRight className="h-4 w-4" />
           </Link>
@@ -570,7 +570,7 @@ function Footer() {
       links: [
         { label: "Join as a pro", to: "/signup" },
         { label: "Pricing & plans", to: "/plans" },
-        { label: "HubPoints wallet", to: "/wallet" },
+        { label: "Wallet", to: "/wallet" },
       ],
     },
   ];
