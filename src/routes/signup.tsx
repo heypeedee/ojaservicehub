@@ -8,6 +8,8 @@ import {
   Check,
   CheckCircle2,
   ChefHat,
+  Eye,
+  EyeOff,
   Mail,
   MapPin,
   Paintbrush,
@@ -70,7 +72,11 @@ function slugify(s: string) {
 
 function SignupPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signup" | "login">("signup");
+  const [mode, setMode] = useState<"signup" | "login" | "forgot" | "reset">("signup");
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [resetDone, setResetDone] = useState(false);
   const [role, setRole] = useState<Role | null>(null);
   const [step, setStep] = useState(0);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -119,6 +125,50 @@ function SignupPage() {
     }
     navigate({ to: "/pro/dashboard", replace: true });
   }
+
+  async function handleSendReset() {
+    setAuthError(null);
+    if (!forgotEmail) {
+      setAuthError("Enter your email.");
+      return;
+    }
+    setSubmitting(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+      redirectTo: typeof window !== "undefined" ? `${window.location.origin}/signup` : undefined,
+    });
+    setSubmitting(false);
+    if (error) {
+      setAuthError(error.message);
+      return;
+    }
+    setForgotSent(true);
+  }
+
+  async function handleUpdatePassword() {
+    setAuthError(null);
+    if (newPassword.length < 8) {
+      setAuthError("Password must be at least 8 characters.");
+      return;
+    }
+    setSubmitting(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setSubmitting(false);
+    if (error) {
+      setAuthError(error.message);
+      return;
+    }
+    setResetDone(true);
+  }
+
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setMode("reset");
+        setCheckingSession(false);
+      }
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   // Common
   const [fullName, setFullName] = useState("");
@@ -300,6 +350,83 @@ function SignupPage() {
     );
   }
 
+  // Forgot password
+  if (mode === "forgot") {
+    return (
+      <Shell>
+        <div className="mx-auto max-w-md">
+          <h1 className="text-3xl font-semibold tracking-tight">Reset your password</h1>
+          <p className="mt-2 text-muted-foreground">We'll email you a link to set a new one.</p>
+          <div className="mt-6 rounded-3xl border border-border bg-card p-6 shadow-sm">
+            {forgotSent ? (
+              <p className="text-sm text-foreground">
+                Check <span className="font-semibold">{forgotEmail}</span> for a reset link. It can take a
+                minute to arrive — check spam too.
+              </p>
+            ) : (
+              <>
+                <Field label="Email">
+                  <input value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} type="email" className={inputCls} placeholder="you@email.com" />
+                </Field>
+                {authError && <p className="mt-3 text-sm text-destructive">{authError}</p>}
+                <button
+                  onClick={handleSendReset}
+                  disabled={submitting}
+                  className="mt-6 inline-flex w-full items-center justify-center gap-1 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  {submitting ? "Sending…" : "Send reset link"}
+                </button>
+              </>
+            )}
+          </div>
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            <button onClick={() => { setMode("login"); setAuthError(null); }} className="font-semibold text-foreground hover:underline">
+              Back to sign in
+            </button>
+          </p>
+        </div>
+      </Shell>
+    );
+  }
+
+  // Reset password (arrived here via the emailed recovery link)
+  if (mode === "reset") {
+    return (
+      <Shell>
+        <div className="mx-auto max-w-md">
+          <h1 className="text-3xl font-semibold tracking-tight">Set a new password</h1>
+          <div className="mt-6 rounded-3xl border border-border bg-card p-6 shadow-sm">
+            {resetDone ? (
+              <>
+                <p className="text-sm text-foreground">Your password has been updated.</p>
+                <button
+                  onClick={() => { setMode("login"); setResetDone(false); }}
+                  className="mt-6 inline-flex w-full items-center justify-center gap-1 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"
+                >
+                  Sign in
+                </button>
+              </>
+            ) : (
+              <>
+                <Field label="New password">
+                  <PasswordInput value={newPassword} onChange={setNewPassword} className={inputCls} placeholder="At least 8 characters" />
+                </Field>
+                {authError && <p className="mt-3 text-sm text-destructive">{authError}</p>}
+                <button
+                  onClick={handleUpdatePassword}
+                  disabled={submitting}
+                  className="mt-6 inline-flex w-full items-center justify-center gap-1 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  {submitting ? "Updating…" : "Update password"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </Shell>
+    );
+  }
+
   // Login
   if (mode === "login") {
     return (
@@ -313,8 +440,15 @@ function SignupPage() {
                 <input value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} type="email" className={inputCls} placeholder="you@email.com" />
               </Field>
               <Field label="Password">
-                <input value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} type="password" className={inputCls} placeholder="Your password" />
+                <PasswordInput value={loginPassword} onChange={setLoginPassword} className={inputCls} placeholder="Your password" />
               </Field>
+              <button
+                type="button"
+                onClick={() => { setMode("forgot"); setAuthError(null); setForgotSent(false); }}
+                className="justify-self-end text-xs font-semibold text-primary hover:underline"
+              >
+                Forgot password?
+              </button>
             </div>
             {authError && <p className="mt-3 text-sm text-destructive">{authError}</p>}
             <button
@@ -409,7 +543,7 @@ function SignupPage() {
                   </div>
                 </Field>
                 <Field label="Password">
-                  <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" className={inputCls} placeholder="At least 8 characters" />
+                  <PasswordInput value={password} onChange={setPassword} className={inputCls} placeholder="At least 8 characters" />
                 </Field>
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -685,6 +819,40 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="mb-1 block text-xs font-semibold text-muted-foreground">{label}</span>
       {children}
     </label>
+  );
+}
+
+function PasswordInput({
+  value,
+  onChange,
+  placeholder,
+  className,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  className: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        type={show ? "text" : "password"}
+        placeholder={placeholder}
+        className={`${className} pr-10`}
+      />
+      <button
+        type="button"
+        onClick={() => setShow((s) => !s)}
+        tabIndex={-1}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+        aria-label={show ? "Hide password" : "Show password"}
+      >
+        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
   );
 }
 
