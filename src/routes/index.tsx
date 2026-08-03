@@ -18,6 +18,25 @@ import {
   Smartphone,
   ArrowRight,
   Quote,
+  Droplet,
+  Brush,
+  GraduationCap,
+  UtensilsCrossed,
+  PartyPopper,
+  Globe,
+  PenTool,
+  Clapperboard,
+  PenLine,
+  Laptop,
+  Share2,
+  Code2,
+  BarChart3,
+  ShieldAlert,
+  Users,
+  BadgeCheck,
+  Wallet,
+  MessageCircle,
+  Tag,
   type LucideIcon,
 } from "lucide-react";
 import { OjaLogo } from "@/components/OjaLogo";
@@ -32,6 +51,19 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   ChefHat,
   Paintbrush,
   Car,
+  Droplet,
+  Brush,
+  GraduationCap,
+  UtensilsCrossed,
+  PartyPopper,
+  Globe,
+  PenTool,
+  Clapperboard,
+  PenLine,
+  Laptop,
+  Share2,
+  Code2,
+  BarChart3,
 };
 
 const CATEGORY_TINTS = [
@@ -85,8 +117,11 @@ function Home() {
       <Header />
       <Hero />
       <Categories />
+      <WhyChooseOja />
       <Featured />
+      <HowItWorks />
       <RecentJobs />
+      <BlogAndInsights />
       <Footer />
     </div>
   );
@@ -274,8 +309,8 @@ function Categories() {
     <section id="categories" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Popular categories</h2>
-          <p className="mt-3 text-muted-foreground">Hand-picked pros across the services people book most.</p>
+          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Browse categories</h2>
+          <p className="mt-3 text-muted-foreground">From home services to digital work — find the right pro for the job.</p>
         </div>
         <Link to="/search" search={{ q: "" }} className="hidden text-sm font-medium text-primary hover:underline sm:inline-flex">
           Browse all →
@@ -295,10 +330,10 @@ function Categories() {
                 key={slug}
                 to="/search"
                 search={{ q: name }}
-                className="group relative flex items-center gap-4 overflow-hidden rounded-2xl border border-border bg-card p-5 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_18px_40px_-24px_oklch(0.46_0.13_155/0.35)]"
+                className="group relative flex items-center gap-4 overflow-hidden rounded-2xl border border-border bg-card p-5 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_18px_40px_-24px_oklch(0.46_0.13_155/0.35)] active:scale-[0.96] active:duration-100"
               >
                 <div
-                  className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl transition-transform group-hover:scale-105 ${CATEGORY_TINTS[i % CATEGORY_TINTS.length]}`}
+                  className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl transition-transform duration-300 group-hover:scale-105 group-active:scale-90 group-active:rotate-6 ${CATEGORY_TINTS[i % CATEGORY_TINTS.length]}`}
                 >
                   <Icon className="h-6 w-6" strokeWidth={1.75} />
                 </div>
@@ -311,6 +346,60 @@ function Categories() {
               </Link>
             );
           })}
+      </div>
+    </section>
+  );
+}
+
+const WHY_CARDS = [
+  { icon: BadgeCheck, title: "Verified providers", body: "ID-checked pros who carry a real verified badge on their shop.", tint: "bg-brand-soft text-brand" },
+  { icon: Sparkles, title: "AI matching", body: "Describe what you need in plain words — Instant Match ranks pros by fit.", tint: "bg-orange/10 text-orange" },
+  { icon: Wallet, title: "Secure payments", body: "Pay by card or bank transfer through Paystack, right in the app.", tint: "bg-gold/15 text-charcoal" },
+  { icon: ShieldAlert, title: "Escrow protection", body: "Your payment is held safely and only released once the job is done.", tint: "bg-brand-soft text-brand" },
+  { icon: Star, title: "Reviews & ratings", body: "See a pro's real rating, built from real completed bookings.", tint: "bg-orange/10 text-orange" },
+  { icon: MessageCircle, title: "Direct messaging", body: "Chat with your pro before, during, and after the job — no middleman.", tint: "bg-gold/15 text-charcoal" },
+  { icon: Tag, title: "Transparent pricing", body: "See exact prices before you book. No hidden fees, no surprises.", tint: "bg-brand-soft text-brand" },
+  { icon: Users, title: "Local & remote work", body: "From home repairs in Lagos to remote design and dev work, anywhere.", tint: "bg-orange/10 text-orange" },
+];
+
+function WhyChooseOja() {
+  const [popped, setPopped] = useState<number | null>(null);
+
+  return (
+    <section className="bg-muted/40 py-20">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Why choose Ọjà</h2>
+          <p className="mt-3 text-muted-foreground">Everything built to make hiring a local pro feel safe and simple.</p>
+        </div>
+        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {WHY_CARDS.map((card, i) => {
+            const Icon = card.icon;
+            const isPopped = popped === i;
+            return (
+              <button
+                key={card.title}
+                onClick={() => {
+                  setPopped(i);
+                  setTimeout(() => setPopped((cur) => (cur === i ? null : cur)), 420);
+                }}
+                className={`group rounded-3xl border border-border bg-card p-6 text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${
+                  isPopped ? "-translate-y-1.5 scale-[1.03] border-primary/40 shadow-xl" : ""
+                }`}
+              >
+                <div
+                  className={`grid h-12 w-12 place-items-center rounded-2xl transition-transform duration-300 ${card.tint} ${
+                    isPopped ? "scale-110 -rotate-6" : "group-hover:scale-105"
+                  }`}
+                >
+                  <Icon className="h-6 w-6" strokeWidth={1.75} />
+                </div>
+                <p className="mt-4 font-semibold text-foreground">{card.title}</p>
+                <p className="mt-1.5 text-sm text-muted-foreground">{card.body}</p>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </section>
   );
@@ -460,6 +549,63 @@ type RecentJobRow = {
   provider_profiles: { business_name: string; area: string } | null;
 };
 
+const HOW_IT_WORKS = {
+  buyer: [
+    { title: "Search", body: "Find a pro by service, or describe your need to Instant Match.", icon: Search },
+    { title: "Choose", body: "Compare real ratings, prices, and availability, then pick your pro." },
+    { title: "Pay securely", body: "Pay through Paystack — your money is held safely in escrow." },
+    { title: "Work completed", body: "Mark the job done and your pro gets paid. Leave a rating." },
+  ],
+  provider: [
+    { title: "Create your store", body: "Set up your shop with your services, prices, and photos." },
+    { title: "Verify your identity", body: "Get ID-checked and earn your verified badge." },
+    { title: "Receive jobs", body: "Get booked directly, or matched instantly to nearby requests." },
+    { title: "Get paid", body: "Mark the job complete and release your payout to your bank." },
+  ],
+} as const;
+
+function HowItWorks() {
+  const [tab, setTab] = useState<"buyer" | "provider">("buyer");
+  const steps = HOW_IT_WORKS[tab];
+
+  return (
+    <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-2xl text-center">
+        <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">How it works</h2>
+        <p className="mt-3 text-muted-foreground">Simple either way — whether you're booking or getting booked.</p>
+        <div className="mt-6 inline-flex items-center gap-1 rounded-full border border-border bg-card p-1">
+          {(["buyer", "provider"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
+                tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t === "buyer" ? "As a customer" : "As a pro"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {steps.map((step, i) => (
+          <div key={step.title} className="relative rounded-3xl border border-border bg-card p-6 shadow-sm">
+            <div className="grid h-10 w-10 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+              {i + 1}
+            </div>
+            <p className="mt-4 font-semibold text-foreground">{step.title}</p>
+            <p className="mt-1.5 text-sm text-muted-foreground">{step.body}</p>
+            {i < steps.length - 1 && (
+              <div className="absolute right-[-14px] top-11 hidden h-px w-7 bg-border lg:block" />
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function RecentJobs() {
   const [jobs, setJobs] = useState<RecentJobRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -549,6 +695,116 @@ function RecentJobs() {
           >
             Try Instant Match <ArrowRight className="h-4 w-4" />
           </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const BLOG_POSTS = [
+  {
+    title: "How to Hire Trusted Artisans",
+    teaser: "Look for a verified badge, check their real rating, and keep payment in escrow until the job is actually done.",
+    body: "Before you book, check for the verified badge on a pro's shop and read their real rating — it's built from actual completed bookings, not marketing. Always agree on the price and scope in chat first, and never pay outside the app: Ọjà's escrow only protects payments made through Paystack in-app, so your money stays safe until you mark the job complete.",
+  },
+  {
+    title: "Growing Your Business with Ọjà",
+    teaser: "A complete profile with real photos and clear pricing gets booked more often than a bare one.",
+    body: "Shops with clear pricing, a filled-out tagline, and fast replies to messages tend to get booked faster — customers can see exactly what they're paying before they commit. Keep your services up to date, reply to enquiries quickly (response time affects your Instant Match ranking), and ask happy customers to leave a rating once the job wraps up.",
+  },
+  {
+    title: "Avoiding Online Scams",
+    teaser: "Never pay a pro directly outside the app — escrow is what actually keeps your money protected.",
+    body: "The single biggest rule: never send money directly to a pro outside Ọjà's Paystack checkout. If a 'discount for paying cash/transfer directly' sounds too good to be true, it usually is — and it means you lose all escrow protection. Stick to verified pros, keep the conversation in-app, and report anything that feels off.",
+  },
+  {
+    title: "Digital Skills for Nigerians",
+    teaser: "Web design, writing, and social media management are growing fast on Ọjà — no office needed.",
+    body: "You don't need a storefront or equipment to earn on Ọjà — categories like Web Design, Programming, Writing, and Social Media Management are entirely remote. Start by listing one or two services you're confident in, price them fairly while you build your first reviews, and let your rating do the talking after that.",
+  },
+];
+
+function BlogAndInsights() {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [email, setEmail] = useState("");
+  const [subState, setSubState] = useState<"idle" | "loading" | "done" | "exists" | "error">("idle");
+
+  async function subscribe(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setSubState("loading");
+    const { error } = await supabase.from("newsletter_subscribers").insert({ email: email.trim().toLowerCase() });
+    if (error) {
+      setSubState(error.code === "23505" ? "exists" : "error");
+      return;
+    }
+    setSubState("done");
+    setEmail("");
+  }
+
+  return (
+    <section className="bg-muted/40 py-20">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="grid gap-12 lg:grid-cols-[1.4fr_1fr]">
+          <div>
+            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Blog & insights</h2>
+            <p className="mt-3 text-muted-foreground">Tips for booking smart and building a business on Ọjà.</p>
+            <div className="mt-8 grid gap-4 sm:grid-cols-2">
+              {BLOG_POSTS.map((post, i) => {
+                const open = openIndex === i;
+                return (
+                  <article key={post.title} className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+                    <p className="font-semibold text-foreground">{post.title}</p>
+                    <p className="mt-2 text-sm text-muted-foreground">{post.teaser}</p>
+                    {open && <p className="mt-3 text-sm text-muted-foreground">{post.body}</p>}
+                    <button
+                      onClick={() => setOpenIndex(open ? null : i)}
+                      className="mt-3 text-sm font-semibold text-primary hover:underline"
+                    >
+                      {open ? "Show less" : "Read more"} →
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-primary/20 bg-brand-soft/40 p-8">
+            <h3 className="text-xl font-semibold">Newsletter</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Stay informed about new services, updates, promotions, and business tips.
+            </p>
+            {subState === "done" ? (
+              <p className="mt-5 rounded-2xl bg-brand-soft px-4 py-3 text-sm font-semibold text-brand">
+                Subscribed! Thanks for joining.
+              </p>
+            ) : subState === "exists" ? (
+              <p className="mt-5 rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground">
+                That email's already subscribed.
+              </p>
+            ) : (
+              <form onSubmit={subscribe} className="mt-5 space-y-2">
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@email.com"
+                  className="w-full rounded-full border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary"
+                />
+                <button
+                  type="submit"
+                  disabled={subState === "loading"}
+                  className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  {subState === "loading" ? "Subscribing…" : "Subscribe"}
+                </button>
+                {subState === "error" && (
+                  <p className="text-xs text-destructive">Something went wrong — try again.</p>
+                )}
+              </form>
+            )}
+          </div>
         </div>
       </div>
     </section>
