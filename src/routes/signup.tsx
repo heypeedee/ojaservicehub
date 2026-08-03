@@ -89,6 +89,15 @@ function SignupPage() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
+  async function routeToDashboard(userId: string) {
+    const { data: providerRow } = await supabase
+      .from("provider_profiles")
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle();
+    navigate({ to: providerRow ? "/pro/dashboard" : "/dashboard", replace: true });
+  }
+
   useEffect(() => {
     let active = true;
     async function init() {
@@ -100,7 +109,7 @@ function SignupPage() {
       setDbCategories(cats ?? []);
       if (sessionData.session) {
         // Already signed in — no need to go through signup again.
-        navigate({ to: "/pro/dashboard", replace: true });
+        routeToDashboard(sessionData.session.user.id);
         return;
       }
       setCheckingSession(false);
@@ -118,26 +127,27 @@ function SignupPage() {
       return;
     }
     setSubmitting(true);
-    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
+    const { data, error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPassword });
     setSubmitting(false);
     if (error) {
       setAuthError(error.message);
       return;
     }
-    navigate({ to: "/pro/dashboard", replace: true });
+    if (data.user) await routeToDashboard(data.user.id);
   }
 
   async function handleGoogleSignIn() {
     setAuthError(null);
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: typeof window !== "undefined" ? window.location.origin : undefined,
+      redirect_uri: typeof window !== "undefined" ? `${window.location.origin}/signup` : undefined,
     });
     if (result.error) {
       setAuthError(result.error.message ?? "Google sign-in failed.");
       return;
     }
     if (result.redirected) return;
-    navigate({ to: "/dashboard", replace: true });
+    const { data } = await supabase.auth.getUser();
+    if (data.user) await routeToDashboard(data.user.id);
   }
 
 
