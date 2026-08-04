@@ -172,8 +172,16 @@ function SignupPage() {
       return;
     }
     if (result.redirected) return;
-    const { data } = await supabase.auth.getUser();
-    if (data.user) await routeToDashboard(data.user.id);
+
+    // Lovable's broker sets the session directly rather than through
+    // Supabase's normal OAuth callback — force a refresh so a stale or
+    // malformed token surfaces here, not later on an unrelated request.
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError || !refreshed.session) {
+      setAuthError("Signed in, but couldn't establish a valid session. Please try again.");
+      return;
+    }
+    await routeToDashboard(refreshed.session.user.id);
   }
 
 
