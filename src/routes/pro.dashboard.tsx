@@ -128,6 +128,7 @@ function ProDashboard() {
   const [rating, setRating] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
   const [shopCategory, setShopCategory] = useState("");
+  const [hasShop, setHasShop] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
 
   const [services, setServices] = useState<Service[]>([]);
@@ -161,6 +162,7 @@ function ProDashboard() {
       if (!active) return;
 
       if (profile) {
+        setHasShop(true);
         setShopName(profile.business_name);
         setVerified(profile.verified);
         setRating(Number(profile.rating));
@@ -247,6 +249,7 @@ function ProDashboard() {
       }
 
       setLoadingData(false);
+      if (!profile) setSection("profile");
     }
     load();
     return () => {
@@ -721,6 +724,7 @@ function ProfilePanel() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isNewShop, setIsNewShop] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -751,6 +755,7 @@ function ProfilePanel() {
           setPublished(existing.published);
         } else if (cats && cats.length > 0) {
           setCategoryId(cats[0].id);
+          setIsNewShop(true);
         }
       }
       setLoading(false);
@@ -824,6 +829,16 @@ function ProfilePanel() {
   return (
     <div className="space-y-6">
       <PanelHeader title="Business profile" desc="This is what buyers see on your public shop and search results." />
+      {isNewShop && (
+        <div className="rounded-3xl border border-primary/20 bg-brand-soft/40 p-5">
+          <p className="font-semibold text-foreground">Welcome — let's set up your shop 👋</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            You don't have a business profile yet. Fill in the details below and hit Publish to start
+            showing up in search. Just here to book a service instead? Head back to your{" "}
+            <Link to="/dashboard" className="font-semibold text-primary hover:underline">buyer dashboard</Link>.
+          </p>
+        </div>
+      )}
       <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="grid h-16 w-16 place-items-center rounded-2xl bg-brand-soft text-brand text-xl font-bold">

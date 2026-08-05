@@ -128,6 +128,25 @@ function Home() {
 }
 
 function Header() {
+  const [userId, setUserId] = useState<string | null>(null);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      setUserId(data.session?.user?.id ?? null);
+      setChecking(false);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id ?? null);
+    });
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -138,23 +157,39 @@ function Header() {
           <a href="#categories" className="transition-colors hover:text-foreground">Explore</a>
           <a href="#featured" className="transition-colors hover:text-foreground">Professionals</a>
           <Link to="/map" className="transition-colors hover:text-foreground">Lagos map</Link>
-          <Link to="/dashboard" className="transition-colors hover:text-foreground">My dashboard</Link>
-          <Link to="/pro/dashboard" className="transition-colors hover:text-foreground">For business</Link>
+          {userId && (
+            <>
+              <Link to="/dashboard" className="transition-colors hover:text-foreground">My dashboard</Link>
+              <Link to="/pro/dashboard" className="transition-colors hover:text-foreground">For business</Link>
+            </>
+          )}
         </nav>
         <div className="flex items-center gap-2">
-          <Link
-            to="/signup"
-            className="hidden rounded-full px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted sm:inline-flex"
-          >
-            Sign in
-          </Link>
-          <Link
-            to="/signup"
-            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-95 hover:shadow-md"
-          >
-            Join Ọjà
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          {!checking && !userId && (
+            <>
+              <Link
+                to="/signup"
+                className="hidden rounded-full px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted sm:inline-flex"
+              >
+                Sign in
+              </Link>
+              <Link
+                to="/signup"
+                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-95 hover:shadow-md"
+              >
+                Join Ọjà
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </>
+          )}
+          {!checking && userId && (
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-95 hover:shadow-md"
+            >
+              My dashboard
+            </Link>
+          )}
         </div>
       </div>
     </header>
@@ -282,6 +317,8 @@ function Categories() {
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [showAll, setShowAll] = useState(false);
+  const LIMIT = 8;
 
   useEffect(() => {
     let active = true;
@@ -305,6 +342,8 @@ function Categories() {
     };
   }, []);
 
+  const visible = showAll ? categories : categories.slice(0, LIMIT);
+
   return (
     <section id="categories" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
       <div className="flex items-end justify-between gap-4">
@@ -322,7 +361,7 @@ function Categories() {
             <div key={i} className="h-[76px] animate-pulse rounded-2xl border border-border bg-card" />
           ))}
         {!loading &&
-          categories.map(({ id, slug, name, icon }, i) => {
+          visible.map(({ id, slug, name, icon }, i) => {
             const Icon = CATEGORY_ICONS[icon ?? ""] ?? Sparkles;
             const count = counts[id] ?? 0;
             return (
@@ -347,6 +386,16 @@ function Categories() {
             );
           })}
       </div>
+      {!loading && categories.length > LIMIT && (
+        <div className="mt-8 text-center">
+          <button
+            onClick={() => setShowAll((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-muted"
+          >
+            {showAll ? "Show less" : `Show all ${categories.length} categories`}
+          </button>
+        </div>
+      )}
     </section>
   );
 }
