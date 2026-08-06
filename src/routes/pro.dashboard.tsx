@@ -179,10 +179,17 @@ function ProDashboard() {
           active: s.active,
         }))
       );
+      const bookingList = ((bookingRows as unknown as BookingRow[]) ?? []);
+      const customerIds = Array.from(new Set(bookingList.map((b) => b.customer_id).filter(Boolean)));
+      const { data: customerProfiles } = customerIds.length
+        ? await supabase.from("profiles").select("id, display_name, full_name").in("id", customerIds)
+        : { data: [] as { id: string; display_name: string | null; full_name: string | null }[] };
+      if (!active) return;
+      const nameById = new Map((customerProfiles ?? []).map((p) => [p.id, p.display_name || p.full_name || "Customer"]));
       setBookings(
-        ((bookingRows as unknown as BookingRow[]) ?? []).map((b) => ({
+        bookingList.map((b) => ({
           id: b.id,
-          customer: b.profiles?.display_name || b.profiles?.full_name || "Customer",
+          customer: nameById.get(b.customer_id) ?? "Customer",
           service: b.service_title,
           when: b.scheduled_at ? new Date(b.scheduled_at).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" }) : "—",
           rawDate: b.updated_at,
