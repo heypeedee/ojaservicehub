@@ -103,7 +103,7 @@ type BookingRow = {
   updated_at: string;
   location: string | null;
   customer_id: string;
-  profiles: { display_name: string | null; full_name: string | null } | null;
+  };
 };
 
 const monthLabels = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
