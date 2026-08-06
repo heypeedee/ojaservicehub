@@ -155,7 +155,7 @@ function ProDashboard() {
         supabase.from("services").select("*").eq("provider_id", uid).order("created_at"),
         supabase
           .from("bookings")
-          .select("id, service_title, amount, status, payment_status, payout_amount, platform_fee, scheduled_at, updated_at, location, customer_id, profiles(display_name, full_name)")
+          .select("id, service_title, amount, status, payment_status, payout_amount, platform_fee, scheduled_at, updated_at, location, customer_id")
           .eq("provider_id", uid)
           .order("created_at", { ascending: false }),
       ]);
