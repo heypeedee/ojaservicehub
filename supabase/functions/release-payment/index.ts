@@ -60,9 +60,12 @@ Deno.serve(async (req) => {
       }),
     });
     const transferJson = await transferRes.json();
+    console.log("paystack transfer response", transferRes.status, JSON.stringify(transferJson));
 
     if (!transferRes.ok || !transferJson?.status) {
-      return json({ error: "Transfer failed", detail: transferJson }, 400);
+      const reason = transferJson?.message ?? "Transfer failed";
+      console.error("paystack transfer rejected:", reason);
+      return json({ error: `Paystack: ${reason}`, detail: transferJson }, 400);
     }
 
     const transferStatus = transferJson.data?.status; // 'success' | 'pending' | 'otp'

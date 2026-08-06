@@ -337,7 +337,19 @@ function ProDashboard() {
       headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
     });
     setReleasingId(null);
-    const errMsg = (data as any)?.error;
+    let errMsg = (data as any)?.error as string | undefined;
+    if (!errMsg && error) {
+      // Non-2xx responses land here with data === null; read the real reason from the body.
+      try {
+        const ctx = (error as any)?.context;
+        if (ctx && typeof ctx.json === "function") {
+          const body = await ctx.json();
+          errMsg = body?.error || (body?.detail ? JSON.stringify(body.detail) : undefined);
+        }
+      } catch {
+        // ignore parse failures, fall back to generic message
+      }
+    }
     if (error || errMsg) {
       setReleaseError(errMsg || "Could not release payment. Try again.");
       return;
