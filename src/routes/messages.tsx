@@ -387,6 +387,7 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
           </nav>
           <div className="flex items-center gap-3 text-xs">
             <span className="hidden text-muted-foreground sm:inline">{email}</span>
+            <NotificationBell userId={userId} />
             <button
               onClick={() => supabase.auth.signOut()}
               className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 font-semibold hover:border-primary/40"
@@ -409,6 +410,7 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
           onNewChat={() => setShowNewChat(true)}
           loading={loading}
           userId={userId}
+          unreadByConvo={unreadByConvo}
         />
 
         <ChatPane
@@ -416,8 +418,11 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
           conversation={activeConvo}
           others={activeOthers}
           participantsByConvo={participantsByConvo}
+          othersReadAt={activeConvo ? othersReadAtByConvo[activeConvo.id] ?? null : null}
+          onIncoming={() => refresh()}
         />
       </div>
+
 
       {showNewChat && (
         <NewChatDialog
