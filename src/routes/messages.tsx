@@ -563,6 +563,7 @@ function ConvoList({
           const title = c.title || others.map((o) => nameWithShop(o)).join(", ") || "New chat";
           const initials = (title || "?").slice(0, 1).toUpperCase();
           const active = c.id === activeId;
+          const unread = active ? 0 : unreadByConvo[c.id] ?? 0;
           return (
             <li key={c.id}>
               <button
@@ -577,11 +578,16 @@ function ConvoList({
                   {initials}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">{title}</p>
+                  <p className={`truncate text-sm ${unread ? "font-bold" : "font-semibold"}`}>{title}</p>
                   <p className="truncate text-[11px] text-muted-foreground">
                     {new Date(c.updated_at).toLocaleString()}
                   </p>
                 </div>
+                {unread > 0 && (
+                  <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                )}
               </button>
             </li>
           );
