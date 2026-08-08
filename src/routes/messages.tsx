@@ -3,8 +3,11 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { OjaLogo } from "@/components/OjaLogo";
+import { NotificationBell } from "@/components/NotificationBell";
 import {
   ArrowLeft,
+  Check,
+  CheckCheck,
   Image as ImageIcon,
   Loader2,
   LogOut,
@@ -249,14 +252,15 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
   const [me, setMe] = useState<Profile | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [participantsByConvo, setParticipantsByConvo] = useState<Record<string, Profile[]>>({});
+  const [unreadByConvo, setUnreadByConvo] = useState<Record<string, number>>({});
+  const [othersReadAtByConvo, setOthersReadAtByConvo] = useState<Record<string, string>>({});
   const { conversationId } = Route.useSearch();
   const [activeId, setActiveId] = useState<string | null>(conversationId || null);
   const [loading, setLoading] = useState(true);
   const [showNewChat, setShowNewChat] = useState(false);
 
-  // Load profile + conversations + participant profiles
+  // Load profile + conversations + participant profiles + read state
   async function refresh() {
-    setLoading(true);
     const [{ data: profile }, { data: convos }] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
       supabase
@@ -272,7 +276,7 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
       const ids = convoList.map((c) => c.id);
       const { data: parts } = await supabase
         .from("conversation_participants")
-        .select("conversation_id, user_id")
+        .select("conversation_id, user_id, last_read_at")
         .in("conversation_id", ids);
       const userIds = Array.from(new Set((parts ?? []).map((p: any) => p.user_id)));
       const { data: profs } = await supabase
@@ -281,24 +285,60 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
         .in("id", userIds);
       const profileMap = new Map<string, Profile>((profs ?? []).map((p: any) => [p.id, p]));
       const grouped: Record<string, Profile[]> = {};
+      const myReadAt: Record<string, string> = {};
+      const othersReadAt: Record<string, string> = {};
       (parts ?? []).forEach((p: any) => {
         (grouped[p.conversation_id] ??= []).push(
           profileMap.get(p.user_id) ?? { id: p.user_id, display_name: null, avatar_url: null },
         );
+        if (p.user_id === userId) {
+          myReadAt[p.conversation_id] = p.last_read_at;
+        } else {
+          const current = othersReadAt[p.conversation_id];
+          if (!current || new Date(p.last_read_at) > new Date(current)) {
+            othersReadAt[p.conversation_id] = p.last_read_at;
+          }
+        }
       });
       setParticipantsByConvo(grouped);
+      setOthersReadAtByConvo(othersReadAt);
+
+      // Unread counts: messages from others newer than my last_read_at
+      const { data: recent } = await supabase
+        .from("messages")
+        .select("conversation_id, sender_id, created_at")
+        .in("conversation_id", ids)
+        .order("created_at", { ascending: false })
+        .limit(1000);
+      const counts: Record<string, number> = {};
+      (recent ?? []).forEach((m: any) => {
+        if (m.sender_id === userId) return;
+        const seenAt = myReadAt[m.conversation_id];
+        if (seenAt && new Date(m.created_at) <= new Date(seenAt)) return;
+        counts[m.conversation_id] = (counts[m.conversation_id] ?? 0) + 1;
+      });
+      setUnreadByConvo(counts);
+    } else {
+      setParticipantsByConvo({});
+      setUnreadByConvo({});
+      setOthersReadAtByConvo({});
     }
     setLoading(false);
   }
 
   useEffect(() => {
     refresh();
-    // Realtime: bump when conversations change (new messages/updates)
+    // Realtime: bump when conversations or read markers change
     const channel = supabase
       .channel("convo-list")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "conversations" },
+        () => refresh(),
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "conversation_participants" },
         () => refresh(),
       )
       .subscribe();
@@ -311,6 +351,25 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
   useEffect(() => {
     if (!activeId && conversations.length) setActiveId(conversations[0].id);
   }, [conversations, activeId]);
+
+  // Mark the open conversation as read
+  useEffect(() => {
+    if (!activeId) return;
+    let cancelled = false;
+    const mark = async () => {
+      await supabase
+        .from("conversation_participants")
+        .update({ last_read_at: new Date().toISOString() })
+        .eq("conversation_id", activeId)
+        .eq("user_id", userId);
+      if (!cancelled) setUnreadByConvo((prev) => ({ ...prev, [activeId]: 0 }));
+    };
+    mark();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeId, userId]);
+
 
   const activeConvo = conversations.find((c) => c.id === activeId) ?? null;
   const activeOthers = activeConvo
@@ -331,6 +390,7 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
           </nav>
           <div className="flex items-center gap-3 text-xs">
             <span className="hidden text-muted-foreground sm:inline">{email}</span>
+            <NotificationBell userId={userId} />
             <button
               onClick={() => supabase.auth.signOut()}
               className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 font-semibold hover:border-primary/40"
@@ -353,6 +413,7 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
           onNewChat={() => setShowNewChat(true)}
           loading={loading}
           userId={userId}
+          unreadByConvo={unreadByConvo}
         />
 
         <ChatPane
@@ -360,8 +421,11 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
           conversation={activeConvo}
           others={activeOthers}
           participantsByConvo={participantsByConvo}
+          othersReadAt={activeConvo ? othersReadAtByConvo[activeConvo.id] ?? null : null}
+          onIncoming={() => refresh()}
         />
       </div>
+
 
       {showNewChat && (
         <NewChatDialog
@@ -438,6 +502,7 @@ function ConvoList({
   onNewChat,
   loading,
   userId,
+  unreadByConvo,
 }: {
   me: Profile | null;
   conversations: Conversation[];
@@ -447,6 +512,7 @@ function ConvoList({
   onNewChat: () => void;
   loading: boolean;
   userId: string;
+  unreadByConvo: Record<string, number>;
 }) {
   const [q, setQ] = useState("");
   const filtered = useMemo(() => {
@@ -500,6 +566,7 @@ function ConvoList({
           const title = c.title || others.map((o) => nameWithShop(o)).join(", ") || "New chat";
           const initials = (title || "?").slice(0, 1).toUpperCase();
           const active = c.id === activeId;
+          const unread = active ? 0 : unreadByConvo[c.id] ?? 0;
           return (
             <li key={c.id}>
               <button
@@ -514,11 +581,16 @@ function ConvoList({
                   {initials}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">{title}</p>
+                  <p className={`truncate text-sm ${unread ? "font-bold" : "font-semibold"}`}>{title}</p>
                   <p className="truncate text-[11px] text-muted-foreground">
                     {new Date(c.updated_at).toLocaleString()}
                   </p>
                 </div>
+                {unread > 0 && (
+                  <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                )}
               </button>
             </li>
           );
@@ -533,18 +605,28 @@ function ChatPane({
   conversation,
   others,
   participantsByConvo,
+  othersReadAt,
+  onIncoming,
 }: {
   userId: string;
   conversation: Conversation | null;
   others: Profile[];
   participantsByConvo: Record<string, Profile[]>;
+  othersReadAt: string | null;
+  onIncoming: () => void;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [typingNames, setTypingNames] = useState<string[]>([]);
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const lastTypingSent = useRef(0);
 
   const convoId = conversation?.id ?? null;
 
@@ -574,19 +656,42 @@ function ChatPane({
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${convoId}` },
         (payload) => {
-          setMessages((prev) => {
-            const m = payload.new as ChatMessage;
-            if (prev.some((p) => p.id === m.id)) return prev;
-            return [...prev, m];
-          });
+          const m = payload.new as ChatMessage;
+          setMessages((prev) => (prev.some((p) => p.id === m.id) ? prev : [...prev, m]));
+          if (m.sender_id !== userId) {
+            setTypingNames([]);
+            // Mark as read immediately — this conversation is open
+            supabase
+              .from("conversation_participants")
+              .update({ last_read_at: new Date().toISOString() })
+              .eq("conversation_id", convoId)
+              .eq("user_id", userId)
+              .then(() => onIncoming());
+          }
         },
       )
       .subscribe();
+
+    const typingChannel = supabase
+      .channel(`typing-${convoId}`, { config: { broadcast: { self: false } } })
+      .on("broadcast", { event: "typing" }, ({ payload }) => {
+        const p = payload as { userId: string; name: string };
+        if (p.userId === userId) return;
+        setTypingNames((prev) => (prev.includes(p.name) ? prev : [...prev, p.name]));
+        window.setTimeout(() => setTypingNames((prev) => prev.filter((n) => n !== p.name)), 3000);
+      })
+      .subscribe();
+    typingChannelRef.current = typingChannel;
+
     return () => {
       cancelled = true;
       supabase.removeChannel(channel);
+      supabase.removeChannel(typingChannel);
+      typingChannelRef.current = null;
+      setTypingNames([]);
     };
-  }, [convoId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [convoId, userId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -597,6 +702,64 @@ function ChatPane({
     Object.values(participantsByConvo).forEach((list) => list.forEach((p) => m.set(p.id, p)));
     return m;
   }, [participantsByConvo]);
+
+  // Resolve signed URLs for stored chat images (private bucket)
+  useEffect(() => {
+    const paths = messages
+      .map((m) => m.image_url)
+      .filter((u): u is string => !!u && !u.startsWith("http") && !signedUrls[u]);
+    if (!paths.length) return;
+    let cancelled = false;
+    (async () => {
+      const entries: Record<string, string> = {};
+      for (const path of Array.from(new Set(paths))) {
+        const { data } = await supabase.storage.from("chat-images").createSignedUrl(path, 60 * 60);
+        if (data?.signedUrl) entries[path] = data.signedUrl;
+      }
+      if (!cancelled && Object.keys(entries).length) setSignedUrls((prev) => ({ ...prev, ...entries }));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
+
+  function broadcastTyping() {
+    const now = Date.now();
+    if (now - lastTypingSent.current < 1500) return;
+    lastTypingSent.current = now;
+    const meProfile = profileMap.get(userId);
+    typingChannelRef.current?.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { userId, name: nameFor(meProfile ?? null) },
+    });
+  }
+
+  async function handleFile(file: File) {
+    if (!convoId) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Please pick an image file.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Images must be under 5MB.");
+      return;
+    }
+    setUploading(true);
+    const ext = file.name.split(".").pop() || "jpg";
+    const path = `${userId}/${convoId}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from("chat-images").upload(path, file, {
+      contentType: file.type,
+      upsert: false,
+    });
+    setUploading(false);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    setImageUrl(path);
+  }
 
   async function send(e: FormEvent) {
     e.preventDefault();
@@ -614,10 +777,12 @@ function ChatPane({
     if (!error) {
       setInput("");
       setImageUrl("");
+      if (fileRef.current) fileRef.current.value = "";
     } else {
       alert(error.message);
     }
   }
+
 
   if (!conversation) {
     return (
@@ -661,6 +826,12 @@ function ChatPane({
         {messages.map((m) => {
           const mine = m.sender_id === userId;
           const sender = profileMap.get(m.sender_id);
+          const src = m.image_url
+            ? m.image_url.startsWith("http")
+              ? m.image_url
+              : signedUrls[m.image_url]
+            : null;
+          const seen = mine && othersReadAt ? new Date(m.created_at) <= new Date(othersReadAt) : false;
           return (
             <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
               <div
@@ -676,58 +847,86 @@ function ChatPane({
                   </p>
                 )}
                 {m.image_url && (
-                  <img
-                    src={m.image_url}
-                    alt=""
-                    className="mb-2 max-h-56 rounded-xl object-cover"
-                  />
+                  src ? (
+                    <img src={src} alt="Shared in chat" className="mb-2 max-h-56 rounded-xl object-cover" />
+                  ) : (
+                    <div className="mb-2 grid h-24 w-40 place-items-center rounded-xl bg-muted">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  )
                 )}
                 {m.body && <p className="whitespace-pre-wrap leading-relaxed">{m.body}</p>}
-                <p className={`mt-1 text-[10px] ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                <p className={`mt-1 flex items-center gap-1 text-[10px] ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
                   {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  {mine && (seen ? <CheckCheck className="h-3 w-3" /> : <Check className="h-3 w-3" />)}
                 </p>
               </div>
             </div>
           );
         })}
+        {typingNames.length > 0 && (
+          <p className="text-[11px] italic text-muted-foreground">
+            {typingNames.join(", ")} {typingNames.length > 1 ? "are" : "is"} typing…
+          </p>
+        )}
         <div ref={bottomRef} />
       </div>
 
       <form onSubmit={send} className="border-t border-border bg-background/60 px-4 py-3">
-        {imageUrl && (
+        {(imageUrl || uploading) && (
           <div className="mb-2 flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-1.5 text-xs">
-            <ImageIcon className="h-3.5 w-3.5 text-primary" />
-            <span className="truncate">Image attached</span>
-            <button
-              type="button"
-              onClick={() => setImageUrl("")}
-              className="ml-auto text-muted-foreground hover:text-foreground"
-            >
-              Remove
-            </button>
+            {uploading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+            ) : (
+              <ImageIcon className="h-3.5 w-3.5 text-primary" />
+            )}
+            <span className="truncate">{uploading ? "Uploading…" : "Image attached"}</span>
+            {!uploading && (
+              <button
+                type="button"
+                onClick={() => {
+                  setImageUrl("");
+                  if (fileRef.current) fileRef.current.value = "";
+                }}
+                className="ml-auto text-muted-foreground hover:text-foreground"
+              >
+                Remove
+              </button>
+            )}
           </div>
         )}
         <div className="flex items-center gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleFile(f);
+            }}
+          />
           <button
             type="button"
-            onClick={() => {
-              const url = window.prompt("Paste an image URL");
-              if (url) setImageUrl(url);
-            }}
-            className="grid h-10 w-10 place-items-center rounded-full border border-border bg-card text-muted-foreground hover:border-primary/40"
-            title="Attach image URL"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="grid h-10 w-10 place-items-center rounded-full border border-border bg-card text-muted-foreground hover:border-primary/40 disabled:opacity-60"
+            title="Attach an image"
           >
             <ImageIcon className="h-4 w-4" />
           </button>
           <input
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              broadcastTyping();
+            }}
             placeholder="Type a message"
             className="flex-1 rounded-full border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary"
           />
           <button
             type="submit"
-            disabled={sending || (!input.trim() && !imageUrl.trim())}
+            disabled={sending || uploading || (!input.trim() && !imageUrl.trim())}
             className="inline-flex items-center gap-1 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
           >
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -735,6 +934,7 @@ function ChatPane({
           </button>
         </div>
       </form>
+
     </section>
   );
 }
