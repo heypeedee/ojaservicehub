@@ -823,6 +823,12 @@ function ChatPane({
         {messages.map((m) => {
           const mine = m.sender_id === userId;
           const sender = profileMap.get(m.sender_id);
+          const src = m.image_url
+            ? m.image_url.startsWith("http")
+              ? m.image_url
+              : signedUrls[m.image_url]
+            : null;
+          const seen = mine && othersReadAt ? new Date(m.created_at) <= new Date(othersReadAt) : false;
           return (
             <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
               <div
@@ -838,58 +844,86 @@ function ChatPane({
                   </p>
                 )}
                 {m.image_url && (
-                  <img
-                    src={m.image_url}
-                    alt=""
-                    className="mb-2 max-h-56 rounded-xl object-cover"
-                  />
+                  src ? (
+                    <img src={src} alt="Shared in chat" className="mb-2 max-h-56 rounded-xl object-cover" />
+                  ) : (
+                    <div className="mb-2 grid h-24 w-40 place-items-center rounded-xl bg-muted">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  )
                 )}
                 {m.body && <p className="whitespace-pre-wrap leading-relaxed">{m.body}</p>}
-                <p className={`mt-1 text-[10px] ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                <p className={`mt-1 flex items-center gap-1 text-[10px] ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
                   {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  {mine && (seen ? <CheckCheck className="h-3 w-3" /> : <Check className="h-3 w-3" />)}
                 </p>
               </div>
             </div>
           );
         })}
+        {typingNames.length > 0 && (
+          <p className="text-[11px] italic text-muted-foreground">
+            {typingNames.join(", ")} {typingNames.length > 1 ? "are" : "is"} typing…
+          </p>
+        )}
         <div ref={bottomRef} />
       </div>
 
       <form onSubmit={send} className="border-t border-border bg-background/60 px-4 py-3">
-        {imageUrl && (
+        {(imageUrl || uploading) && (
           <div className="mb-2 flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-1.5 text-xs">
-            <ImageIcon className="h-3.5 w-3.5 text-primary" />
-            <span className="truncate">Image attached</span>
-            <button
-              type="button"
-              onClick={() => setImageUrl("")}
-              className="ml-auto text-muted-foreground hover:text-foreground"
-            >
-              Remove
-            </button>
+            {uploading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+            ) : (
+              <ImageIcon className="h-3.5 w-3.5 text-primary" />
+            )}
+            <span className="truncate">{uploading ? "Uploading…" : "Image attached"}</span>
+            {!uploading && (
+              <button
+                type="button"
+                onClick={() => {
+                  setImageUrl("");
+                  if (fileRef.current) fileRef.current.value = "";
+                }}
+                className="ml-auto text-muted-foreground hover:text-foreground"
+              >
+                Remove
+              </button>
+            )}
           </div>
         )}
         <div className="flex items-center gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleFile(f);
+            }}
+          />
           <button
             type="button"
-            onClick={() => {
-              const url = window.prompt("Paste an image URL");
-              if (url) setImageUrl(url);
-            }}
-            className="grid h-10 w-10 place-items-center rounded-full border border-border bg-card text-muted-foreground hover:border-primary/40"
-            title="Attach image URL"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="grid h-10 w-10 place-items-center rounded-full border border-border bg-card text-muted-foreground hover:border-primary/40 disabled:opacity-60"
+            title="Attach an image"
           >
             <ImageIcon className="h-4 w-4" />
           </button>
           <input
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              broadcastTyping();
+            }}
             placeholder="Type a message"
             className="flex-1 rounded-full border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary"
           />
           <button
             type="submit"
-            disabled={sending || (!input.trim() && !imageUrl.trim())}
+            disabled={sending || uploading || (!input.trim() && !imageUrl.trim())}
             className="inline-flex items-center gap-1 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
           >
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -897,6 +931,7 @@ function ChatPane({
           </button>
         </div>
       </form>
+
     </section>
   );
 }
