@@ -602,18 +602,28 @@ function ChatPane({
   conversation,
   others,
   participantsByConvo,
+  othersReadAt,
+  onIncoming,
 }: {
   userId: string;
   conversation: Conversation | null;
   others: Profile[];
   participantsByConvo: Record<string, Profile[]>;
+  othersReadAt: string | null;
+  onIncoming: () => void;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [typingNames, setTypingNames] = useState<string[]>([]);
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const lastTypingSent = useRef(0);
 
   const convoId = conversation?.id ?? null;
 
@@ -643,19 +653,42 @@ function ChatPane({
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${convoId}` },
         (payload) => {
-          setMessages((prev) => {
-            const m = payload.new as ChatMessage;
-            if (prev.some((p) => p.id === m.id)) return prev;
-            return [...prev, m];
-          });
+          const m = payload.new as ChatMessage;
+          setMessages((prev) => (prev.some((p) => p.id === m.id) ? prev : [...prev, m]));
+          if (m.sender_id !== userId) {
+            setTypingNames([]);
+            // Mark as read immediately — this conversation is open
+            supabase
+              .from("conversation_participants")
+              .update({ last_read_at: new Date().toISOString() })
+              .eq("conversation_id", convoId)
+              .eq("user_id", userId)
+              .then(() => onIncoming());
+          }
         },
       )
       .subscribe();
+
+    const typingChannel = supabase
+      .channel(`typing-${convoId}`, { config: { broadcast: { self: false } } })
+      .on("broadcast", { event: "typing" }, ({ payload }) => {
+        const p = payload as { userId: string; name: string };
+        if (p.userId === userId) return;
+        setTypingNames((prev) => (prev.includes(p.name) ? prev : [...prev, p.name]));
+        window.setTimeout(() => setTypingNames((prev) => prev.filter((n) => n !== p.name)), 3000);
+      })
+      .subscribe();
+    typingChannelRef.current = typingChannel;
+
     return () => {
       cancelled = true;
       supabase.removeChannel(channel);
+      supabase.removeChannel(typingChannel);
+      typingChannelRef.current = null;
+      setTypingNames([]);
     };
-  }, [convoId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [convoId, userId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -666,6 +699,64 @@ function ChatPane({
     Object.values(participantsByConvo).forEach((list) => list.forEach((p) => m.set(p.id, p)));
     return m;
   }, [participantsByConvo]);
+
+  // Resolve signed URLs for stored chat images (private bucket)
+  useEffect(() => {
+    const paths = messages
+      .map((m) => m.image_url)
+      .filter((u): u is string => !!u && !u.startsWith("http") && !signedUrls[u]);
+    if (!paths.length) return;
+    let cancelled = false;
+    (async () => {
+      const entries: Record<string, string> = {};
+      for (const path of Array.from(new Set(paths))) {
+        const { data } = await supabase.storage.from("chat-images").createSignedUrl(path, 60 * 60);
+        if (data?.signedUrl) entries[path] = data.signedUrl;
+      }
+      if (!cancelled && Object.keys(entries).length) setSignedUrls((prev) => ({ ...prev, ...entries }));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
+
+  function broadcastTyping() {
+    const now = Date.now();
+    if (now - lastTypingSent.current < 1500) return;
+    lastTypingSent.current = now;
+    const meProfile = profileMap.get(userId);
+    typingChannelRef.current?.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { userId, name: nameFor(meProfile ?? null) },
+    });
+  }
+
+  async function handleFile(file: File) {
+    if (!convoId) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Please pick an image file.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Images must be under 5MB.");
+      return;
+    }
+    setUploading(true);
+    const ext = file.name.split(".").pop() || "jpg";
+    const path = `${userId}/${convoId}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from("chat-images").upload(path, file, {
+      contentType: file.type,
+      upsert: false,
+    });
+    setUploading(false);
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    setImageUrl(path);
+  }
 
   async function send(e: FormEvent) {
     e.preventDefault();
@@ -683,10 +774,12 @@ function ChatPane({
     if (!error) {
       setInput("");
       setImageUrl("");
+      if (fileRef.current) fileRef.current.value = "";
     } else {
       alert(error.message);
     }
   }
+
 
   if (!conversation) {
     return (
