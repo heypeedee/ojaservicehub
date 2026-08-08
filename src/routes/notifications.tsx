@@ -343,7 +343,7 @@ function SettingsPanel({ userId }: { userId: string }) {
     const { error } = await supabase.from("notification_preferences").upsert(
       {
         user_id: userId,
-        channels: prefs as unknown as Record<string, unknown>,
+        channels: JSON.parse(JSON.stringify(prefs)),
         quiet_enabled: quiet.on,
         quiet_from: quiet.from,
         quiet_to: quiet.to,
