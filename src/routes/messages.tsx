@@ -249,14 +249,15 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
   const [me, setMe] = useState<Profile | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [participantsByConvo, setParticipantsByConvo] = useState<Record<string, Profile[]>>({});
+  const [unreadByConvo, setUnreadByConvo] = useState<Record<string, number>>({});
+  const [othersReadAtByConvo, setOthersReadAtByConvo] = useState<Record<string, string>>({});
   const { conversationId } = Route.useSearch();
   const [activeId, setActiveId] = useState<string | null>(conversationId || null);
   const [loading, setLoading] = useState(true);
   const [showNewChat, setShowNewChat] = useState(false);
 
-  // Load profile + conversations + participant profiles
+  // Load profile + conversations + participant profiles + read state
   async function refresh() {
-    setLoading(true);
     const [{ data: profile }, { data: convos }] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
       supabase
@@ -272,7 +273,7 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
       const ids = convoList.map((c) => c.id);
       const { data: parts } = await supabase
         .from("conversation_participants")
-        .select("conversation_id, user_id")
+        .select("conversation_id, user_id, last_read_at")
         .in("conversation_id", ids);
       const userIds = Array.from(new Set((parts ?? []).map((p: any) => p.user_id)));
       const { data: profs } = await supabase
@@ -281,24 +282,60 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
         .in("id", userIds);
       const profileMap = new Map<string, Profile>((profs ?? []).map((p: any) => [p.id, p]));
       const grouped: Record<string, Profile[]> = {};
+      const myReadAt: Record<string, string> = {};
+      const othersReadAt: Record<string, string> = {};
       (parts ?? []).forEach((p: any) => {
         (grouped[p.conversation_id] ??= []).push(
           profileMap.get(p.user_id) ?? { id: p.user_id, display_name: null, avatar_url: null },
         );
+        if (p.user_id === userId) {
+          myReadAt[p.conversation_id] = p.last_read_at;
+        } else {
+          const current = othersReadAt[p.conversation_id];
+          if (!current || new Date(p.last_read_at) > new Date(current)) {
+            othersReadAt[p.conversation_id] = p.last_read_at;
+          }
+        }
       });
       setParticipantsByConvo(grouped);
+      setOthersReadAtByConvo(othersReadAt);
+
+      // Unread counts: messages from others newer than my last_read_at
+      const { data: recent } = await supabase
+        .from("messages")
+        .select("conversation_id, sender_id, created_at")
+        .in("conversation_id", ids)
+        .order("created_at", { ascending: false })
+        .limit(1000);
+      const counts: Record<string, number> = {};
+      (recent ?? []).forEach((m: any) => {
+        if (m.sender_id === userId) return;
+        const seenAt = myReadAt[m.conversation_id];
+        if (seenAt && new Date(m.created_at) <= new Date(seenAt)) return;
+        counts[m.conversation_id] = (counts[m.conversation_id] ?? 0) + 1;
+      });
+      setUnreadByConvo(counts);
+    } else {
+      setParticipantsByConvo({});
+      setUnreadByConvo({});
+      setOthersReadAtByConvo({});
     }
     setLoading(false);
   }
 
   useEffect(() => {
     refresh();
-    // Realtime: bump when conversations change (new messages/updates)
+    // Realtime: bump when conversations or read markers change
     const channel = supabase
       .channel("convo-list")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "conversations" },
+        () => refresh(),
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "conversation_participants" },
         () => refresh(),
       )
       .subscribe();
@@ -311,6 +348,25 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
   useEffect(() => {
     if (!activeId && conversations.length) setActiveId(conversations[0].id);
   }, [conversations, activeId]);
+
+  // Mark the open conversation as read
+  useEffect(() => {
+    if (!activeId) return;
+    let cancelled = false;
+    const mark = async () => {
+      await supabase
+        .from("conversation_participants")
+        .update({ last_read_at: new Date().toISOString() })
+        .eq("conversation_id", activeId)
+        .eq("user_id", userId);
+      if (!cancelled) setUnreadByConvo((prev) => ({ ...prev, [activeId]: 0 }));
+    };
+    mark();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeId, userId]);
+
 
   const activeConvo = conversations.find((c) => c.id === activeId) ?? null;
   const activeOthers = activeConvo
