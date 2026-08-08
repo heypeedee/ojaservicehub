@@ -137,16 +137,19 @@ export type Database = {
         Row: {
           conversation_id: string
           joined_at: string
+          last_read_at: string
           user_id: string
         }
         Insert: {
           conversation_id: string
           joined_at?: string
+          last_read_at?: string
           user_id: string
         }
         Update: {
           conversation_id?: string
           joined_at?: string
+          last_read_at?: string
           user_id?: string
         }
         Relationships: [
@@ -254,6 +257,39 @@ export type Database = {
           created_at?: string
           email?: string
           id?: string
+        }
+        Relationships: []
+      }
+      notification_preferences: {
+        Row: {
+          channels: Json
+          created_at: string
+          digest: string
+          quiet_enabled: boolean
+          quiet_from: string
+          quiet_to: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channels?: Json
+          created_at?: string
+          digest?: string
+          quiet_enabled?: boolean
+          quiet_from?: string
+          quiet_to?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channels?: Json
+          created_at?: string
+          digest?: string
+          quiet_enabled?: boolean
+          quiet_from?: string
+          quiet_to?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
