@@ -3,8 +3,11 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { OjaLogo } from "@/components/OjaLogo";
+import { NotificationBell } from "@/components/NotificationBell";
 import {
   ArrowLeft,
+  Check,
+  CheckCheck,
   Image as ImageIcon,
   Loader2,
   LogOut,
