@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
+import { useNotifications } from "@/hooks/useNotifications";
 import {
   AlertTriangle,
-  ArrowLeft,
   Bell,
   BellOff,
   Calendar,
@@ -11,14 +13,15 @@ import {
   CreditCard,
   Filter,
   Gift,
+  Loader2,
   Lock,
   Mail,
   MessageSquare,
   Moon,
-  Send,
   ShieldCheck,
   Smartphone,
   Star,
+  Trash2,
   Wallet,
   Wrench,
 } from "lucide-react";
@@ -50,27 +53,18 @@ const categoryMeta: Record<Category, { label: string; icon: typeof Calendar; tin
   system: { label: "System updates", icon: Wrench, tint: "bg-orange-100 text-orange-700" },
 };
 
-const channelMeta: Record<Channel, { label: string; icon: typeof Mail }> = {
-  email: { label: "Email", icon: Mail },
-  sms: { label: "SMS", icon: Smartphone },
-  push: { label: "Push", icon: Bell },
-  inapp: { label: "In-app", icon: BellOff },
+const channelMeta: Record<Channel, { label: string; icon: typeof Mail; available: boolean; note: string }> = {
+  inapp: { label: "In-app", icon: BellOff, available: true, note: "Delivered right here, in real time." },
+  email: { label: "Email", icon: Mail, available: false, note: "Needs an email sending service connected." },
+  sms: { label: "SMS", icon: Smartphone, available: false, note: "Needs an SMS provider connected." },
+  push: { label: "Push", icon: Bell, available: false, note: "Needs web-push keys configured." },
 };
 
-type Notification = {
-  id: string;
-  category: Category;
-  title: string;
-  body: string;
-  when: string;
-  read: boolean;
-  channels: Channel[];
-  cta?: { label: string; to: string };
-};
+const channelOrder: Channel[] = ["inapp", "email", "sms", "push"];
 
-const seed: Notification[] = [];
+type ChannelMatrix = Record<Category, Record<Channel, boolean>>;
 
-const defaultPrefs: Record<Category, Record<Channel, boolean>> = {
+const defaultPrefs: ChannelMatrix = {
   bookings: { email: true, sms: true, push: true, inapp: true },
   payments: { email: true, sms: true, push: false, inapp: true },
   messages: { email: false, sms: false, push: true, inapp: true },
@@ -83,6 +77,22 @@ const defaultPrefs: Record<Category, Record<Channel, boolean>> = {
   system: { email: true, sms: false, push: false, inapp: true },
 };
 
+function normaliseCategory(value: string): Category {
+  return (Object.keys(categoryMeta) as Category[]).includes(value as Category) ? (value as Category) : "system";
+}
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
 export const Route = createFileRoute("/notifications")({
   head: () => ({
     meta: [
@@ -90,7 +100,7 @@ export const Route = createFileRoute("/notifications")({
       {
         name: "description",
         content:
-          "Bookings, payments, messages, reviews, withdrawals, disputes, verification, promotions and security alerts — delivered via email, SMS, push and in-app.",
+          "Live in-app alerts for bookings, payments, messages, reviews, withdrawals and account activity on Ọjà.",
       },
       { property: "og:title", content: "Notifications · Ọjà" },
       { property: "og:description", content: "One inbox for every important update." },
@@ -102,50 +112,59 @@ export const Route = createFileRoute("/notifications")({
 });
 
 function NotificationsPage() {
+  const [session, setSession] = useState<Session | null | undefined>(undefined);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  if (session === undefined) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-muted/30">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-muted/30 px-4">
+        <div className="max-w-sm rounded-3xl border border-border bg-card p-8 text-center shadow-sm">
+          <Bell className="mx-auto h-8 w-8 text-primary" />
+          <h1 className="mt-3 text-lg font-semibold">Sign in to see your notifications</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Booking, payment and message alerts are tied to your Ọjà account.
+          </p>
+          <Link
+            to="/messages"
+            search={{ conversationId: "" }}
+            className="mt-5 inline-flex rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+          >
+            Sign in
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return <NotificationsShell userId={session.user.id} />;
+}
+
+function NotificationsShell({ userId }: { userId: string }) {
   const [tab, setTab] = useState<"inbox" | "settings">("inbox");
-  const [items, setItems] = useState<Notification[]>(seed);
   const [filter, setFilter] = useState<"all" | Category>("all");
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
-  const [prefs, setPrefs] = useState(defaultPrefs);
-  const [quiet, setQuiet] = useState({ on: true, from: "22:00", to: "07:00" });
-  const [digest, setDigest] = useState<"instant" | "hourly" | "daily">("instant");
-  const [testFeedback, setTestFeedback] = useState<string | null>(null);
+  const { items, loading, unread, markRead, markAllRead, remove } = useNotifications(userId);
 
   const filtered = useMemo(() => {
-    let list = filter === "all" ? items : items.filter((n) => n.category === filter);
-    if (showUnreadOnly) list = list.filter((n) => !n.read);
+    let list = filter === "all" ? items : items.filter((n) => normaliseCategory(n.category) === filter);
+    if (showUnreadOnly) list = list.filter((n) => !n.is_read);
     return list;
   }, [items, filter, showUnreadOnly]);
-  const unread = items.filter((n) => !n.read).length;
 
-  function markAll() {
-    setItems((all) => all.map((n) => ({ ...n, read: true })));
-  }
-  function markOne(id: string) {
-    setItems((all) => all.map((n) => (n.id === id ? { ...n, read: true } : n)));
-  }
-  function toggle(cat: Category, ch: Channel) {
-    if (categoryMeta[cat].critical && ch === "inapp") return; // critical stays on in-app
-    setPrefs((p) => ({ ...p, [cat]: { ...p[cat], [ch]: !p[cat][ch] } }));
-  }
-  function sendTest(ch: Channel) {
-    setTestFeedback(`Test ${channelMeta[ch].label} sent — check your ${ch === "sms" ? "phone" : ch === "email" ? "inbox" : "device"}.`);
-    setTimeout(() => setTestFeedback(null), 2600);
-  }
-
-  const filterOrder: ("all" | Category)[] = [
-    "all",
-    "bookings",
-    "payments",
-    "messages",
-    "reviews",
-    "withdrawals",
-    "disputes",
-    "verification",
-    "promotions",
-    "security",
-    "system",
-  ];
+  const filterOrder: ("all" | Category)[] = ["all", ...(Object.keys(categoryMeta) as Category[])];
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -175,7 +194,7 @@ function NotificationsPage() {
         <header className="mb-6">
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Notifications</h1>
           <p className="text-sm text-muted-foreground">
-            Bookings, payments, messages, reviews, withdrawals, disputes, verification, promotions, security and system updates — all in one place, delivered however you prefer.
+            Live alerts for bookings, payments, messages, reviews and withdrawals — delivered in-app the moment they happen.
           </p>
         </header>
 
@@ -206,7 +225,7 @@ function NotificationsPage() {
                   Unread only
                 </label>
                 <button
-                  onClick={markAll}
+                  onClick={markAllRead}
                   disabled={unread === 0}
                   className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold hover:bg-muted disabled:opacity-50"
                 >
@@ -215,192 +234,266 @@ function NotificationsPage() {
               </div>
             </div>
 
-            <ul className="space-y-2">
-              {filtered.map((n) => {
-                const Meta = categoryMeta[n.category];
-                const Icon = Meta.icon;
-                return (
-                  <li
-                    key={n.id}
-                    className={`flex gap-3 rounded-2xl border p-4 shadow-sm transition ${
-                      n.read ? "border-border bg-card" : "border-primary/40 bg-primary/[0.04]"
-                    }`}
-                  >
-                    <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${Meta.tint}`}>
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <p className="truncate text-sm font-semibold">
-                          {!n.read && <span className="mr-2 inline-block h-2 w-2 rounded-full bg-primary align-middle" />}
-                          {n.title}
-                        </p>
-                        <span className="shrink-0 text-[11px] text-muted-foreground">{n.when}</span>
+            {loading ? (
+              <div className="grid place-items-center py-16">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {filtered.map((n) => {
+                  const cat = normaliseCategory(n.category);
+                  const Meta = categoryMeta[cat];
+                  const Icon = Meta.icon;
+                  return (
+                    <li
+                      key={n.id}
+                      className={`flex gap-3 rounded-2xl border p-4 shadow-sm transition ${
+                        n.is_read ? "border-border bg-card" : "border-primary/40 bg-primary/[0.04]"
+                      }`}
+                    >
+                      <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${Meta.tint}`}>
+                        <Icon className="h-5 w-5" />
                       </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground">{n.body}</p>
-                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-1">
-                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground capitalize">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <p className="truncate text-sm font-semibold">
+                            {!n.is_read && <span className="mr-2 inline-block h-2 w-2 rounded-full bg-primary align-middle" />}
+                            {n.title}
+                          </p>
+                          <span className="shrink-0 text-[11px] text-muted-foreground">{relativeTime(n.created_at)}</span>
+                        </div>
+                        {n.body && <p className="mt-0.5 text-xs text-muted-foreground">{n.body}</p>}
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold capitalize text-muted-foreground">
                             {Meta.label}
                           </span>
-                          {n.channels.map((c) => {
-                            const CIcon = channelMeta[c].icon;
-                            return (
-                              <span key={c} title={channelMeta[c].label} className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                                <CIcon className="h-3 w-3" /> {channelMeta[c].label}
-                              </span>
-                            );
-                          })}
-                        </div>
-                        <div className="flex gap-2">
-                          {!n.read && (
-                            <button onClick={() => markOne(n.id)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground">
-                              <Check className="h-3 w-3" /> Mark read
+                          <div className="flex items-center gap-3">
+                            {!n.is_read && (
+                              <button onClick={() => markRead(n.id)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground">
+                                <Check className="h-3 w-3" /> Mark read
+                              </button>
+                            )}
+                            <button onClick={() => remove(n.id)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-destructive">
+                              <Trash2 className="h-3 w-3" /> Delete
                             </button>
-                          )}
-                          {n.cta && (
-                            <Link to={n.cta.to} className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground hover:opacity-90">
-                              {n.cta.label}
-                            </Link>
-                          )}
+                            {n.link && (
+                              <a
+                                href={n.link}
+                                onClick={() => markRead(n.id)}
+                                className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground hover:opacity-90"
+                              >
+                                Open
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </li>
-                );
-              })}
-              {filtered.length === 0 && (
-                <li className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">You're all caught up.</li>
-              )}
-            </ul>
-          </>
-        ) : (
-          <div className="space-y-6">
-            <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-              <h2 className="text-sm font-semibold">Delivery preferences</h2>
-              <p className="text-xs text-muted-foreground">
-                Pick how you want to hear about each type of update. Critical alerts (payments, bookings, withdrawals, disputes, security) always appear in-app.
-              </p>
-
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[560px] text-sm">
-                  <thead>
-                    <tr className="border-b border-border text-left text-[11px] uppercase text-muted-foreground">
-                      <th className="py-2">Type</th>
-                      {(Object.keys(channelMeta) as Channel[]).map((c) => (
-                        <th key={c} className="py-2 text-center font-semibold">{channelMeta[c].label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(Object.keys(categoryMeta) as Category[]).map((cat) => {
-                      const Meta = categoryMeta[cat];
-                      const Icon = Meta.icon;
-                      return (
-                        <tr key={cat} className="border-b border-border/60 last:border-0">
-                          <td className="py-3">
-                            <div className="flex items-center gap-2">
-                              <span className={`grid h-7 w-7 place-items-center rounded-lg ${Meta.tint}`}><Icon className="h-3.5 w-3.5" /></span>
-                              <div>
-                                <p className="font-medium">{Meta.label}</p>
-                                {Meta.critical && <p className="text-[10px] text-muted-foreground">Critical — in-app always on</p>}
-                              </div>
-                            </div>
-                          </td>
-                          {(Object.keys(channelMeta) as Channel[]).map((ch) => {
-                            const locked = Meta.critical && ch === "inapp";
-                            return (
-                              <td key={ch} className="py-3 text-center">
-                                <Toggle
-                                  on={prefs[cat][ch]}
-                                  onChange={() => toggle(cat, ch)}
-                                  disabled={locked}
-                                  label={`${Meta.label} ${channelMeta[ch].label}`}
-                                />
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <Moon className="h-4 w-4" /> Quiet hours
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Silence non-critical push and SMS overnight. Critical booking, payment and security alerts still come through.
-              </p>
-              <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-                <Toggle on={quiet.on} onChange={() => setQuiet({ ...quiet, on: !quiet.on })} label="Quiet hours" />
-                <span className="text-xs text-muted-foreground">From</span>
-                <input
-                  type="time"
-                  value={quiet.from}
-                  onChange={(e) => setQuiet({ ...quiet, from: e.target.value })}
-                  disabled={!quiet.on}
-                  className="rounded-lg border border-border bg-background px-2 py-1 text-sm disabled:opacity-50"
-                />
-                <span className="text-xs text-muted-foreground">to</span>
-                <input
-                  type="time"
-                  value={quiet.to}
-                  onChange={(e) => setQuiet({ ...quiet, to: e.target.value })}
-                  disabled={!quiet.on}
-                  className="rounded-lg border border-border bg-background px-2 py-1 text-sm disabled:opacity-50"
-                />
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-              <h2 className="text-sm font-semibold">Delivery frequency</h2>
-              <p className="text-xs text-muted-foreground">Bundle non-critical email updates to reduce clutter.</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {(["instant", "hourly", "daily"] as const).map((d) => (
-                  <button
-                    key={d}
-                    onClick={() => setDigest(d)}
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold capitalize ${
-                      digest === d ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {d === "instant" ? "Instant" : d === "hourly" ? "Hourly digest" : "Daily digest"}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-              <h2 className="text-sm font-semibold">Test your channels</h2>
-              <p className="text-xs text-muted-foreground">Make sure notifications actually reach you — send a test through any channel.</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {(Object.keys(channelMeta) as Channel[]).map((c) => {
-                  const CIcon = channelMeta[c].icon;
-                  return (
-                    <button
-                      key={c}
-                      onClick={() => sendTest(c)}
-                      className="inline-flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold hover:bg-muted"
-                    >
-                      <Send className="h-3 w-3" /> <CIcon className="h-3 w-3" /> Send test {channelMeta[c].label.toLowerCase()}
-                    </button>
+                    </li>
                   );
                 })}
-              </div>
-              {testFeedback && (
-                <p className="mt-3 rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">{testFeedback}</p>
-              )}
-            </section>
-
-            <p className="text-[11px] text-muted-foreground">
-              SMS is sent to your verified phone; email goes to your account address. You can pause non-critical channels overnight with quiet hours.
-            </p>
-          </div>
+                {filtered.length === 0 && (
+                  <li className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
+                    You're all caught up.
+                  </li>
+                )}
+              </ul>
+            )}
+          </>
+        ) : (
+          <SettingsPanel userId={userId} />
         )}
+      </div>
+    </div>
+  );
+}
+
+function SettingsPanel({ userId }: { userId: string }) {
+  const [prefs, setPrefs] = useState<ChannelMatrix>(defaultPrefs);
+  const [quiet, setQuiet] = useState({ on: true, from: "22:00", to: "07:00" });
+  const [digest, setDigest] = useState<"instant" | "hourly" | "daily">("instant");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("notification_preferences")
+      .select("*")
+      .eq("user_id", userId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        if (data) {
+          const channels = (data.channels ?? {}) as Partial<ChannelMatrix>;
+          setPrefs({ ...defaultPrefs, ...channels } as ChannelMatrix);
+          setQuiet({ on: data.quiet_enabled, from: data.quiet_from, to: data.quiet_to });
+          setDigest((data.digest as "instant" | "hourly" | "daily") ?? "instant");
+        }
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  async function save() {
+    setSaving(true);
+    setSaved(false);
+    const { error } = await supabase.from("notification_preferences").upsert(
+      {
+        user_id: userId,
+        channels: prefs as unknown as Record<string, unknown>,
+        quiet_enabled: quiet.on,
+        quiet_from: quiet.from,
+        quiet_to: quiet.to,
+        digest,
+      },
+      { onConflict: "user_id" },
+    );
+    setSaving(false);
+    if (!error) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2400);
+    }
+  }
+
+  function toggle(cat: Category, ch: Channel) {
+    if (!channelMeta[ch].available) return;
+    if (categoryMeta[cat].critical && ch === "inapp") return;
+    setPrefs((p) => ({ ...p, [cat]: { ...p[cat], [ch]: !p[cat][ch] } }));
+  }
+
+  if (loading) {
+    return (
+      <div className="grid place-items-center py-16">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <h2 className="text-sm font-semibold">Delivery preferences</h2>
+        <p className="text-xs text-muted-foreground">
+          In-app is live today. Email, SMS and push are switched off platform-wide until a sending provider is connected — those columns are shown so you can see what's coming, but they don't deliver yet.
+        </p>
+
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-[11px] uppercase text-muted-foreground">
+                <th className="py-2">Type</th>
+                {channelOrder.map((c) => (
+                  <th key={c} className="py-2 text-center font-semibold">
+                    {channelMeta[c].label}
+                    {!channelMeta[c].available && (
+                      <span className="mt-0.5 block text-[9px] font-medium normal-case text-muted-foreground/70">Not available yet</span>
+                    )}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(Object.keys(categoryMeta) as Category[]).map((cat) => {
+                const Meta = categoryMeta[cat];
+                const Icon = Meta.icon;
+                return (
+                  <tr key={cat} className="border-b border-border/60 last:border-0">
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`grid h-7 w-7 place-items-center rounded-lg ${Meta.tint}`}><Icon className="h-3.5 w-3.5" /></span>
+                        <div>
+                          <p className="font-medium">{Meta.label}</p>
+                          {Meta.critical && <p className="text-[10px] text-muted-foreground">Critical — in-app always on</p>}
+                        </div>
+                      </div>
+                    </td>
+                    {channelOrder.map((ch) => {
+                      const locked = !channelMeta[ch].available || (Meta.critical && ch === "inapp");
+                      return (
+                        <td key={ch} className="py-3 text-center">
+                          <Toggle
+                            on={channelMeta[ch].available ? prefs[cat][ch] : false}
+                            onChange={() => toggle(cat, ch)}
+                            disabled={locked}
+                            label={`${Meta.label} ${channelMeta[ch].label}`}
+                          />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <ul className="mt-4 space-y-1 text-[11px] text-muted-foreground">
+          {channelOrder.map((c) => (
+            <li key={c}>
+              <b className="text-foreground">{channelMeta[c].label}:</b> {channelMeta[c].note}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <Moon className="h-4 w-4" /> Quiet hours
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Saved with your account. Once push and SMS go live, non-critical alerts will be held during these hours.
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+          <Toggle on={quiet.on} onChange={() => setQuiet({ ...quiet, on: !quiet.on })} label="Quiet hours" />
+          <span className="text-xs text-muted-foreground">From</span>
+          <input
+            type="time"
+            value={quiet.from}
+            onChange={(e) => setQuiet({ ...quiet, from: e.target.value })}
+            disabled={!quiet.on}
+            className="rounded-lg border border-border bg-background px-2 py-1 text-sm disabled:opacity-50"
+          />
+          <span className="text-xs text-muted-foreground">to</span>
+          <input
+            type="time"
+            value={quiet.to}
+            onChange={(e) => setQuiet({ ...quiet, to: e.target.value })}
+            disabled={!quiet.on}
+            className="rounded-lg border border-border bg-background px-2 py-1 text-sm disabled:opacity-50"
+          />
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <h2 className="text-sm font-semibold">Delivery frequency</h2>
+        <p className="text-xs text-muted-foreground">Applies to bundled email updates once email is connected.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {(["instant", "hourly", "daily"] as const).map((d) => (
+            <button
+              key={d}
+              onClick={() => setDigest(d)}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold capitalize ${
+                digest === d ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {d === "instant" ? "Instant" : d === "hourly" ? "Hourly digest" : "Daily digest"}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+        >
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />} Save preferences
+        </button>
+        {saved && <span className="text-xs font-semibold text-brand">Saved.</span>}
       </div>
     </div>
   );
@@ -426,7 +519,7 @@ function Toggle({
       disabled={disabled}
       className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
         on ? "bg-primary" : "bg-muted"
-      } ${disabled ? "opacity-60" : ""}`}
+      } ${disabled ? "opacity-40" : ""}`}
     >
       <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${on ? "translate-x-4" : "translate-x-0.5"}`} />
     </button>
