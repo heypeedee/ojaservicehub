@@ -499,6 +499,7 @@ function ConvoList({
   onNewChat,
   loading,
   userId,
+  unreadByConvo,
 }: {
   me: Profile | null;
   conversations: Conversation[];
@@ -508,6 +509,7 @@ function ConvoList({
   onNewChat: () => void;
   loading: boolean;
   userId: string;
+  unreadByConvo: Record<string, number>;
 }) {
   const [q, setQ] = useState("");
   const filtered = useMemo(() => {
