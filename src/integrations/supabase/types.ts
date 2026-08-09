@@ -653,6 +653,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      debug_whoami: { Args: never; Returns: Json }
       generate_unique_username: { Args: { seed: string }; Returns: string }
       has_role: {
         Args: {
