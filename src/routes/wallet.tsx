@@ -417,17 +417,15 @@ function WithdrawModal({
 
         {!payout?.ready ? (
           <div className="mt-4 rounded-xl border border-border bg-muted/40 p-4 text-sm">
-            <p className="font-medium">No verified payout account yet</p>
+            <p className="font-medium">Add your payout account</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Add and verify your bank account in your dashboard settings, then come back here.
+              We verify the account name with your bank before any money leaves your wallet.
             </p>
-            <Link
-              to="/pro/dashboard"
-              className="mt-3 inline-flex rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground"
-            >
-              Add bank account
-            </Link>
+            <div className="mt-3">
+              <BankAccountForm onSaved={onDone} />
+            </div>
           </div>
+
         ) : done ? (
           <div className="mt-4 space-y-3">
             <p className="text-sm text-emerald-600">{done}</p>
