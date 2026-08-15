@@ -14,6 +14,7 @@ import {
   Wallet as WalletIcon,
 } from "lucide-react";
 import { BackNav } from "@/components/BackNav";
+import { BankAccountForm } from "@/components/BankAccountForm";
 import { supabase } from "@/integrations/supabase/client";
 import { getWalletOverview, requestWithdrawal, type WalletOverview } from "@/lib/wallet.functions";
 
