@@ -207,6 +207,45 @@ export type Database = {
         }
         Relationships: []
       }
+      kyc_documents: {
+        Row: {
+          created_at: string
+          doc_type: string
+          file_path: string
+          id: string
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          doc_type: string
+          file_path: string
+          id?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          doc_type?: string
+          file_path?: string
+          id?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           body: string | null
@@ -393,15 +432,7 @@ export type Database = {
           provider_id?: string
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "provider_payout_details_provider_id_fkey"
-            columns: ["provider_id"]
-            isOneToOne: true
-            referencedRelation: "provider_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       provider_profiles: {
         Row: {
@@ -647,6 +678,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      withdrawal_requests: {
+        Row: {
+          account_name: string
+          account_number: string
+          amount_ngn: number
+          bank_name: string
+          created_at: string
+          failure_reason: string | null
+          id: string
+          status: string
+          transfer_reference: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_name: string
+          account_number: string
+          amount_ngn: number
+          bank_name: string
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          status?: string
+          transfer_reference?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          amount_ngn?: number
+          bank_name?: string
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          status?: string
+          transfer_reference?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {
