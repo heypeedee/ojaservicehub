@@ -48,7 +48,17 @@ function WalletPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [txs, setTxs] = useState<Tx[]>([]);
-  const [payout, setPayout] = useState<{ bank_name: string; account_number: string; account_name: string } | null>(null);
+  const [overview, setOverview] = useState<WalletOverview | null>(null);
+  const [showWithdraw, setShowWithdraw] = useState(false);
+  const loadOverview = useServerFn(getWalletOverview);
+
+  async function refreshOverview() {
+    try {
+      setOverview(await loadOverview({ data: undefined as never }));
+    } catch {
+      setOverview(null);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -63,18 +73,14 @@ function WalletPage() {
         setLoading(false);
         return;
       }
-      const [{ data: bookings }, { data: payoutRow }] = await Promise.all([
+      const [{ data: bookings }] = await Promise.all([
         supabase
           .from("bookings")
           .select("id, service_title, payout_amount, payment_status, updated_at")
           .eq("provider_id", uid)
           .in("payment_status", ["Paid", "Released"])
           .order("updated_at", { ascending: false }),
-        supabase
-          .from("provider_payout_details")
-          .select("bank_name, account_number, account_name")
-          .eq("provider_id", uid)
-          .maybeSingle(),
+        refreshOverview(),
       ]);
       if (!active) return;
       setTxs(
@@ -86,7 +92,6 @@ function WalletPage() {
           amount: Number(b.payout_amount),
         }))
       );
-      setPayout(payoutRow ?? null);
       setLoading(false);
     }
     load();
@@ -95,11 +100,12 @@ function WalletPage() {
     };
   }, []);
 
+  const payout = overview?.payout ?? null;
+
   const totals = useMemo(() => {
-    const available = txs.filter((t) => t.status === "Released").reduce((s, t) => s + t.amount, 0);
     const escrow = txs.filter((t) => t.status === "Paid").reduce((s, t) => s + t.amount, 0);
-    return { available, escrow };
-  }, [txs]);
+    return { available: overview?.available ?? 0, escrow, pendingOut: overview?.pendingOut ?? 0 };
+  }, [txs, overview]);
 
   const visible = txs.filter((t) => {
     if (tab === "released" && t.status !== "Released") return false;
@@ -130,23 +136,68 @@ function WalletPage() {
             <p className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
               <WalletIcon className="h-3.5 w-3.5" /> Wallet
             </p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Your real earnings</h1>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Your money</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Every paid booking sits in escrow until you mark the job complete and release it.
+              Paid bookings sit in escrow. Once released, the money lands in your wallet — withdraw it to your bank anytime.
             </p>
           </div>
-          <Link
-            to="/pro/dashboard"
+          <button
+            onClick={() => setShowWithdraw(true)}
             className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow hover:opacity-90"
           >
-            Go release a payment →
-          </Link>
+            <ArrowUpRight className="h-4 w-4" /> Withdraw to bank
+          </button>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-2">
-          <BalanceCard featured icon={WalletIcon} label="Paid out to you" value={totals.available} hint="All time, released" />
+        <section className="grid gap-4 md:grid-cols-3">
+          <BalanceCard featured icon={WalletIcon} label="Available to withdraw" value={totals.available} hint="Released into your wallet" />
           <BalanceCard icon={Clock} label="Held in escrow" value={totals.escrow} hint="Release from Orders once complete" />
+          <BalanceCard icon={ArrowUpRight} label="Withdrawal in progress" value={totals.pendingOut} hint="Sent to your bank" />
         </section>
+
+        {overview && overview.withdrawals.length > 0 && (
+          <section className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-sm">
+            <h2 className="text-sm font-semibold">Withdrawals</h2>
+            <ul className="mt-3 divide-y divide-border">
+              {overview.withdrawals.map((w) => (
+                <li key={w.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                  <div>
+                    <p className="font-medium">₦{w.amount_ngn.toLocaleString()}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {w.bank_name} ••••{w.account_number.slice(-4)} ·{" "}
+                      {new Date(w.created_at).toLocaleDateString("en-NG", { month: "short", day: "numeric" })}
+                      {w.failure_reason ? ` · ${w.failure_reason}` : ""}
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                      w.status === "completed"
+                        ? "bg-emerald-50 text-emerald-700"
+                        : w.status === "failed"
+                          ? "bg-destructive/10 text-destructive"
+                          : "bg-amber-50 text-amber-700"
+                    }`}
+                  >
+                    {w.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {showWithdraw && (
+          <WithdrawModal
+            available={totals.available}
+            payout={payout}
+            onClose={() => setShowWithdraw(false)}
+            onDone={() => {
+              setShowWithdraw(false);
+              void refreshOverview();
+            }}
+          />
+        )}
+
 
         <section className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
           <div className="rounded-2xl border border-border bg-card shadow-sm">
