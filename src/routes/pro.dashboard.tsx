@@ -30,6 +30,7 @@ import {
   X,
 } from "lucide-react";
 import { OjaLogo } from "@/components/OjaLogo";
+import { KycPanel } from "@/components/KycPanel";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/pro/dashboard")({
