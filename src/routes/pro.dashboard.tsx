@@ -922,38 +922,12 @@ function ProfilePanel() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-primary/20 bg-brand-soft/40 p-6">
-        <div className="flex items-center gap-2 text-sm font-semibold text-brand">
-          <ShieldCheck className="h-4 w-4" /> Verification status
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          ID and address verification aren't wired up yet — this section is still a placeholder.
-        </p>
-        <div className="mt-3 grid gap-2 text-sm">
-          <VerifyItem label="Live selfie" done={false} />
-          <VerifyItem label="Government ID (NIN)" done={false} />
-          <VerifyItem label="Proof of address" done={false} />
-          <VerifyItem label="Business bank account" done={false} />
-        </div>
-      </section>
+      <KycPanel />
     </div>
   );
 }
 
-function VerifyItem({ label, done }: { label: string; done: boolean }) {
-  return (
-    <div className="flex items-center justify-between rounded-2xl bg-background px-4 py-2.5">
-      <span className="text-sm">{label}</span>
-      {done ? (
-        <span className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-semibold text-brand">
-          <CheckCircle2 className="h-3 w-3" /> Verified
-        </span>
-      ) : (
-        <button className="rounded-full bg-orange px-3 py-1 text-[11px] font-semibold text-white">Upload</button>
-      )}
-    </div>
-  );
-}
+
 
 /* ---------- Services ---------- */
 
