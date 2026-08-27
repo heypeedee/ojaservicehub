@@ -81,8 +81,6 @@ function ProDashboardRoute() {
   );
 }
 
-const _unusedRouteTail = createFileRoute("/pro/dashboard")({
-});
 
 type Section =
   | "overview"
