@@ -32,6 +32,7 @@ import {
 import { OjaLogo } from "@/components/OjaLogo";
 import { KycPanel } from "@/components/KycPanel";
 import { supabase } from "@/integrations/supabase/client";
+import { RoleGate, WrongRoleNotice } from "@/components/RoleGate";
 
 export const Route = createFileRoute("/pro/dashboard")({
   head: () => ({
@@ -48,8 +49,39 @@ export const Route = createFileRoute("/pro/dashboard")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  component: ProDashboard,
+  component: ProDashboardRoute,
 });
+
+function ProDashboardRoute() {
+  const [startSelling, setStartSelling] = useState(false);
+
+  if (startSelling) return <ProDashboard />;
+
+  return (
+    <RoleGate
+      allow="provider"
+      onWrongRole={
+        <WrongRoleNotice
+          title="This is the business area"
+          body="You're signed in as a customer, so your bookings, wallet and chats live in your customer dashboard."
+          toLabel="Go to my dashboard"
+          to="/dashboard"
+          action={
+            <button
+              onClick={() => setStartSelling(true)}
+              className="rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold hover:bg-muted"
+            >
+              Set up a business profile
+            </button>
+          }
+        />
+      }
+    >
+      <ProDashboard />
+    </RoleGate>
+  );
+}
+
 
 type Section =
   | "overview"
@@ -457,7 +489,7 @@ function Topbar({ unread }: { unread: number }) {
         </Link>
         <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
           <Link to="/pro/dashboard" className="text-foreground">Business</Link>
-          <Link to="/dashboard" className="hover:text-foreground">Buyer view</Link>
+          <Link to="/wallet" className="hover:text-foreground">Wallet</Link>
         </nav>
         <div className="flex items-center gap-2">
           <Link
