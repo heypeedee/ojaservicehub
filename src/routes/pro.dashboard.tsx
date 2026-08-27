@@ -32,6 +32,7 @@ import {
 import { OjaLogo } from "@/components/OjaLogo";
 import { KycPanel } from "@/components/KycPanel";
 import { supabase } from "@/integrations/supabase/client";
+import { RoleGate, WrongRoleNotice } from "@/components/RoleGate";
 
 export const Route = createFileRoute("/pro/dashboard")({
   head: () => ({
