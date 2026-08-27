@@ -239,23 +239,6 @@ function BuyerDashboard() {
 
 function TopBar({ query, setQuery }: { query: string; setQuery: (v: string) => void }) {
   const navigate = useNavigate();
-  const [hasShop, setHasShop] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    async function check() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.user) return;
-      const { data } = await supabase.from("provider_profiles").select("id").eq("id", session.user.id).maybeSingle();
-      if (active) setHasShop(!!data);
-    }
-    check();
-    return () => {
-      active = false;
-    };
-  }, []);
 
   return (
     <div className="sticky top-0 z-30 border-b border-border/60 bg-background/80 backdrop-blur">
@@ -265,9 +248,10 @@ function TopBar({ query, setQuery }: { query: string; setQuery: (v: string) => v
         </Link>
         <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
           <Link to="/dashboard" className="text-foreground">Overview</Link>
+          <Link to="/search" search={{ q: "" }} className="hover:text-foreground">Find a pro</Link>
           <Link to="/messages" search={{ conversationId: "" }} className="hover:text-foreground">Messages</Link>
           <Link to="/notifications" className="hover:text-foreground">Notifications</Link>
-          <Link to="/pro/dashboard" className="hover:text-foreground">{hasShop ? "Business" : "Become a pro"}</Link>
+          <Link to="/wallet" className="hover:text-foreground">Wallet</Link>
         </nav>
         <form
           onSubmit={(e) => {
