@@ -489,7 +489,7 @@ function Topbar({ unread }: { unread: number }) {
         </Link>
         <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
           <Link to="/pro/dashboard" className="text-foreground">Business</Link>
-          <Link to="/dashboard" className="hover:text-foreground">Buyer view</Link>
+          <Link to="/wallet" className="hover:text-foreground">Wallet</Link>
         </nav>
         <div className="flex items-center gap-2">
           <Link
