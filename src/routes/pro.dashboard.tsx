@@ -48,7 +48,40 @@ export const Route = createFileRoute("/pro/dashboard")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  component: ProDashboard,
+  component: ProDashboardRoute,
+});
+
+function ProDashboardRoute() {
+  const [startSelling, setStartSelling] = useState(false);
+
+  if (startSelling) return <ProDashboard />;
+
+  return (
+    <RoleGate
+      allow="provider"
+      onWrongRole={
+        <WrongRoleNotice
+          title="This is the business area"
+          body="You're signed in as a customer, so your bookings, wallet and chats live in your customer dashboard."
+          toLabel="Go to my dashboard"
+          to="/dashboard"
+          action={
+            <button
+              onClick={() => setStartSelling(true)}
+              className="rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold hover:bg-muted"
+            >
+              Set up a business profile
+            </button>
+          }
+        />
+      }
+    >
+      <ProDashboard />
+    </RoleGate>
+  );
+}
+
+const _unusedRouteTail = createFileRoute("/pro/dashboard")({
 });
 
 type Section =
