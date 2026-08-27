@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { OjaLogo } from "@/components/OjaLogo";
 import { supabase } from "@/integrations/supabase/client";
+import { RoleGate } from "@/components/RoleGate";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
