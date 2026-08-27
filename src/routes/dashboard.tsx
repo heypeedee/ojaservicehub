@@ -38,7 +38,11 @@ export const Route = createFileRoute("/dashboard")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  component: BuyerDashboard,
+  component: () => (
+    <RoleGate allow="customer">
+      <BuyerDashboard />
+    </RoleGate>
+  ),
 });
 
 type OrderStatus = "Confirmed" | "Awaiting pro" | "Completed" | "Cancelled";
