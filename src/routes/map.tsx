@@ -353,7 +353,7 @@ function MapPage() {
           <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
             <Link to="/search" search={{ q: "" }} className="hover:text-foreground">Search</Link>
             <Link to="/map" className="text-foreground">Map</Link>
-            <Link to="/dashboard" className="hover:text-foreground">Dashboard</Link>
+            <DashboardLink className="hover:text-foreground" label="Dashboard" />
           </nav>
           <Link
             to="/instant-match"

@@ -384,7 +384,7 @@ function ChatShell({ userId, email }: { userId: string; email: string }) {
             <OjaLogo size={32} />
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
-            <Link to="/dashboard" className="hover:text-foreground">Dashboard</Link>
+            <DashboardLink className="hover:text-foreground" label="Dashboard" />
             <Link to="/messages" search={{ conversationId: "" }} className="text-foreground">Messages</Link>
             <Link to="/notifications" className="hover:text-foreground">Notifications</Link>
           </nav>

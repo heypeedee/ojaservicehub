@@ -157,12 +157,7 @@ function Header() {
           <a href="#categories" className="transition-colors hover:text-foreground">Explore</a>
           <a href="#featured" className="transition-colors hover:text-foreground">Professionals</a>
           <Link to="/map" className="transition-colors hover:text-foreground">Lagos map</Link>
-          {userId && (
-            <>
-              <Link to="/dashboard" className="transition-colors hover:text-foreground">My dashboard</Link>
-              <Link to="/pro/dashboard" className="transition-colors hover:text-foreground">For business</Link>
-            </>
-          )}
+          {userId && <Link to="/messages" className="transition-colors hover:text-foreground">Messages</Link>}
         </nav>
         <div className="flex items-center gap-2">
           {!checking && !userId && (
@@ -183,12 +178,9 @@ function Header() {
             </>
           )}
           {!checking && userId && (
-            <Link
-              to="/dashboard"
+            <DashboardLink
               className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-95 hover:shadow-md"
-            >
-              My dashboard
-            </Link>
+            />
           )}
         </div>
       </div>
