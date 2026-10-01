@@ -1,3 +1,4 @@
+import { DashboardLink } from "@/components/DashboardLink";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Layers, Loader2, MapPin, Search, Star, X } from "lucide-react";

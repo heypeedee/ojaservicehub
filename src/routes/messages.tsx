@@ -1,3 +1,4 @@
+import { DashboardLink } from "@/components/DashboardLink";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
