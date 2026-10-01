@@ -158,7 +158,7 @@ function Header() {
           <a href="#categories" className="transition-colors hover:text-foreground">Explore</a>
           <a href="#featured" className="transition-colors hover:text-foreground">Professionals</a>
           <Link to="/map" className="transition-colors hover:text-foreground">Lagos map</Link>
-          {userId && <Link to="/messages" className="transition-colors hover:text-foreground">Messages</Link>}
+          {userId && <Link to="/messages" search={{ conversationId: "" }} className="transition-colors hover:text-foreground">Messages</Link>}
         </nav>
         <div className="flex items-center gap-2">
           {!checking && !userId && (
