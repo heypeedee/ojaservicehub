@@ -248,7 +248,7 @@ function WalletPage() {
 
           <aside className="space-y-4">
             <EscrowCard />
-            <BanksCard payout={payout} />
+            <BanksCard payout={payout} onSaved={() => void refreshOverview()} />
           </aside>
         </section>
       </div>
