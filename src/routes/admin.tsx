@@ -562,20 +562,44 @@ function ProvidersView() {
   );
 }
 
+type KycDocRow = {
+  id: string;
+  user_id: string;
+  doc_type: string;
+  file_path: string;
+  status: string;
+  rejection_reason: string | null;
+};
+
+const KYC_LABELS: Record<string, string> = {
+  selfie: "Live selfie",
+  nin: "Government ID (NIN)",
+  address: "Proof of address",
+  bank: "Business bank account",
+};
+
 function VerificationView() {
   const [rows, setRows] = useState<{ id: string; name: string; cat: string; joined: string }[]>([]);
+  const [docs, setDocs] = useState<Record<string, KycDocRow[]>>({});
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     async function load() {
-      const { data } = await supabase
-        .from("provider_profiles")
-        .select("id, business_name, created_at, categories(name)")
-        .eq("verified", false)
-        .order("created_at");
+      const [{ data }, { data: kyc }] = await Promise.all([
+        supabase
+          .from("provider_profiles")
+          .select("id, business_name, created_at, categories(name)")
+          .eq("verified", false)
+          .order("created_at"),
+        supabase.from("kyc_documents").select("id, user_id, doc_type, file_path, status, rejection_reason"),
+      ]);
       if (!active) return;
+      const grouped: Record<string, KycDocRow[]> = {};
+      for (const d of (kyc as KycDocRow[]) ?? []) (grouped[d.user_id] ??= []).push(d);
+      setDocs(grouped);
       setRows(
         ((data as any[]) ?? []).map((r) => ({
           id: r.id,
@@ -594,46 +618,127 @@ function VerificationView() {
 
   async function approve(id: string) {
     setBusyId(id);
+    const { data: auth } = await supabase.auth.getUser();
     const { error } = await supabase.from("provider_profiles").update({ verified: true }).eq("id", id);
+    if (!error) {
+      await supabase
+        .from("kyc_documents")
+        .update({ status: "approved", rejection_reason: null, reviewed_by: auth.user?.id, reviewed_at: new Date().toISOString() })
+        .eq("user_id", id)
+        .eq("status", "pending");
+      setRows((all) => all.filter((r) => r.id !== id));
+    }
     setBusyId(null);
-    if (!error) setRows((all) => all.filter((r) => r.id !== id));
+  }
+
+  async function reviewDoc(doc: KycDocRow, status: "approved" | "rejected") {
+    let reason: string | null = null;
+    if (status === "rejected") {
+      reason = window.prompt("Why is this document rejected? The business will see this.")?.trim() || null;
+      if (!reason) return;
+    }
+    setBusyId(doc.id);
+    const { data: auth } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from("kyc_documents")
+      .update({ status, rejection_reason: reason, reviewed_by: auth.user?.id, reviewed_at: new Date().toISOString() })
+      .eq("id", doc.id);
+    setBusyId(null);
+    if (!error) {
+      setDocs((all) => ({
+        ...all,
+        [doc.user_id]: (all[doc.user_id] ?? []).map((d) => (d.id === doc.id ? { ...d, status, rejection_reason: reason } : d)),
+      }));
+    }
+  }
+
+  async function viewDoc(doc: KycDocRow) {
+    const { data } = await supabase.storage.from("kyc-docs").createSignedUrl(doc.file_path, 120);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank", "noopener");
+    else window.alert("Could not open this file.");
   }
 
   return (
-    <Section title="Verification queue" subtitle="Providers waiting on a verified badge.">
-      <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
-        <table className="w-full min-w-[560px] text-sm">
-          <thead className="border-b border-border text-left text-[11px] uppercase text-muted-foreground">
-            <tr>
-              <th className="p-3">Provider</th><th className="p-3">Category</th><th className="p-3">Joined</th><th className="p-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <tr><td colSpan={4} className="p-6 text-center text-xs text-muted-foreground">Loading…</td></tr>}
-            {!loading && rows.length === 0 && (
-              <tr><td colSpan={4} className="p-6 text-center text-xs text-muted-foreground">Nothing pending — everyone's verified.</td></tr>
-            )}
-            {!loading &&
-              rows.map((r) => (
-                <tr key={r.id} className="border-b border-border/60 last:border-0">
-                  <td className="p-3 font-semibold">{r.name}</td>
-                  <td className="p-3">{r.cat}</td>
-                  <td className="p-3 text-muted-foreground">{r.joined}</td>
-                  <td className="p-3">
-                    <div className="flex justify-end gap-1">
-                      <button
-                        onClick={() => approve(r.id)}
-                        disabled={busyId === r.id}
-                        className="rounded-full bg-emerald-600 px-3 py-1 text-[11px] font-semibold text-white hover:opacity-90 disabled:opacity-50"
-                      >
-                        Mark verified
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+    <Section title="Verification queue" subtitle="Review each business's documents, then approve or reject.">
+      <div className="space-y-3">
+        {loading && <p className="rounded-2xl border border-border bg-card p-6 text-center text-xs text-muted-foreground">Loading…</p>}
+        {!loading && rows.length === 0 && (
+          <p className="rounded-2xl border border-border bg-card p-6 text-center text-xs text-muted-foreground">Nothing pending — everyone's verified.</p>
+        )}
+        {!loading &&
+          rows.map((r) => {
+            const list = docs[r.id] ?? [];
+            const approvedCount = list.filter((d) => d.status === "approved").length;
+            const pendingCount = list.filter((d) => d.status === "pending").length;
+            const open = openId === r.id;
+            return (
+              <div key={r.id} className="rounded-2xl border border-border bg-card shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2 p-4">
+                  <div>
+                    <p className="font-semibold">{r.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {r.cat} · joined {r.joined} · {list.length}/4 uploaded · {approvedCount} approved
+                      {pendingCount > 0 ? ` · ${pendingCount} to review` : ""}
+                    </p>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => setOpenId(open ? null : r.id)}
+                      className="rounded-full border border-border px-3 py-1 text-[11px] font-semibold hover:bg-muted"
+                    >
+                      {open ? "Hide documents" : "Review documents"}
+                    </button>
+                    <button
+                      onClick={() => approve(r.id)}
+                      disabled={busyId === r.id || list.length === 0}
+                      title={list.length === 0 ? "No documents uploaded yet" : undefined}
+                      className="rounded-full bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                    >
+                      Approve business
+                    </button>
+                  </div>
+                </div>
+                {open && (
+                  <div className="border-t border-border p-4">
+                    {list.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">This business hasn't uploaded any documents yet.</p>
+                    ) : (
+                      <ul className="grid gap-2 sm:grid-cols-2">
+                        {list.map((d) => (
+                          <li key={d.id} className="rounded-xl border border-border p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-medium">{KYC_LABELS[d.doc_type] ?? d.doc_type}</p>
+                              <StatusPill status={d.status === "approved" ? "Active" : d.status === "rejected" ? "Suspended" : "Pending"} />
+                            </div>
+                            {d.rejection_reason && <p className="mt-1 text-[11px] text-destructive">Rejected: {d.rejection_reason}</p>}
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              <button onClick={() => viewDoc(d)} className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-[11px] font-semibold hover:bg-muted">
+                                <Eye className="h-3 w-3" /> View
+                              </button>
+                              <button
+                                onClick={() => reviewDoc(d, "approved")}
+                                disabled={busyId === d.id || d.status === "approved"}
+                                className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-[11px] font-semibold text-primary hover:bg-muted disabled:opacity-50"
+                              >
+                                <Check className="h-3 w-3" /> Approve
+                              </button>
+                              <button
+                                onClick={() => reviewDoc(d, "rejected")}
+                                disabled={busyId === d.id || d.status === "rejected"}
+                                className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-[11px] font-semibold text-destructive hover:bg-muted disabled:opacity-50"
+                              >
+                                <X className="h-3 w-3" /> Reject
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
       </div>
     </Section>
   );
