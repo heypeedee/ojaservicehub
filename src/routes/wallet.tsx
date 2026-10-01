@@ -248,7 +248,7 @@ function WalletPage() {
 
           <aside className="space-y-4">
             <EscrowCard />
-            <BanksCard payout={payout} />
+            <BanksCard payout={payout} onSaved={() => void refreshOverview()} />
           </aside>
         </section>
       </div>
@@ -346,18 +346,38 @@ function EscrowCard() {
   );
 }
 
-function BanksCard({ payout }: { payout: { bank_name: string; account_number: string; account_name: string } | null }) {
+function BanksCard({
+  payout,
+  onSaved,
+}: {
+  payout: { bank_name: string; account_number: string; account_name: string } | null;
+  onSaved?: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <div className="flex items-center justify-between">
         <h3 className="inline-flex items-center gap-2 text-sm font-semibold">
           <Landmark className="h-4 w-4 text-primary" /> Payout account
         </h3>
-        <Link to="/pro/dashboard" className="text-xs font-semibold text-primary hover:underline">
-          {payout ? "Update" : "Add"}
-        </Link>
+        <button
+          type="button"
+          onClick={() => setEditing((v) => !v)}
+          className="text-xs font-semibold text-primary hover:underline"
+        >
+          {editing ? "Cancel" : payout ? "Update" : "Add"}
+        </button>
       </div>
-      {payout ? (
+      {editing ? (
+        <div className="mt-3">
+          <BankAccountForm
+            onSaved={() => {
+              setEditing(false);
+              onSaved?.();
+            }}
+          />
+        </div>
+      ) : payout ? (
         <div className="mt-3 flex items-center justify-between rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm">
           <div className="flex items-center gap-2">
             <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -371,7 +391,7 @@ function BanksCard({ payout }: { payout: { bank_name: string; account_number: st
         </div>
       ) : (
         <p className="mt-3 text-xs text-muted-foreground">
-          No payout account on file yet — add one in your dashboard's Settings tab before you can release a payment.
+          No payout account on file yet — add one to withdraw your balance to your bank.
         </p>
       )}
     </div>
