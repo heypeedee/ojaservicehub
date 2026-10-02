@@ -186,6 +186,62 @@ export type Database = {
         }
         Relationships: []
       }
+      disputes: {
+        Row: {
+          booking_id: string
+          created_at: string
+          details: string | null
+          id: string
+          opened_by: string
+          opener_role: string
+          previous_booking_status: string | null
+          reason: string
+          resolution_note: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          details?: string | null
+          id?: string
+          opened_by: string
+          opener_role: string
+          previous_booking_status?: string | null
+          reason: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          details?: string | null
+          id?: string
+          opened_by?: string
+          opener_role?: string
+          previous_booking_status?: string | null
+          reason?: string
+          resolution_note?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disputes_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       favourites: {
         Row: {
           created_at: string
@@ -786,6 +842,14 @@ export type Database = {
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }[]
+      }
+      open_dispute: {
+        Args: { _booking_id: string; _details: string; _reason: string }
+        Returns: string
+      }
+      resolve_dispute: {
+        Args: { _dispute_id: string; _note: string; _outcome: string }
+        Returns: undefined
       }
       revoke_staff_role: {
         Args: {
