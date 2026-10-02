@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1790964357182,
+      "tag": "0000_kyc_audit_and_role_admin",
+      "breakpoints": true
+    }
+  ]
+}
