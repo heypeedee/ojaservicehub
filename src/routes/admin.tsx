@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 import { BackNav } from "@/components/BackNav";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
+import { History, UserCog } from "lucide-react";
 
 type Section =
   | "overview"
@@ -39,7 +41,8 @@ type Section =
   | "categories"
   | "reports"
   | "fraud"
-  | "settings";
+  | "settings"
+  | "team";
 
 const sections: { id: Section; label: string; icon: typeof Shield }[] = [
   { id: "overview", label: "Overview", icon: LayoutGrid },
@@ -53,6 +56,7 @@ const sections: { id: Section; label: string; icon: typeof Shield }[] = [
   { id: "reports", label: "Reports", icon: FileText },
   { id: "fraud", label: "Fraud detection", icon: ShieldAlert },
   { id: "settings", label: "Platform settings", icon: Settings2 },
+  { id: "team", label: "Team & roles", icon: UserCog },
 ];
 
 export const Route = createFileRoute("/admin")({
@@ -118,9 +122,24 @@ function AdminPanel() {
           <p className="mt-1 text-sm text-muted-foreground">
             {signedIn ? "Your account doesn't have admin access." : "Sign in with an admin account to continue."}
           </p>
-          <Link to="/" className="mt-4 inline-flex items-center gap-1 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground">
-            Back to Ọjà
-          </Link>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {!signedIn && (
+              <button
+                onClick={() => void lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/admin` })}
+                className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground"
+              >
+                Sign in with Google
+              </button>
+            )}
+            {!signedIn && (
+              <Link to="/signup" className="rounded-full border border-border px-5 py-2 text-sm font-semibold">
+                Email sign in
+              </Link>
+            )}
+            <Link to="/" className="rounded-full border border-border px-5 py-2 text-sm font-semibold">
+              Back to Ọjà
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -195,6 +214,7 @@ function AdminPanel() {
           {section === "reports" && <ReportsView />}
           {section === "fraud" && <FraudView />}
           {section === "settings" && <SettingsView />}
+          {section === "team" && <TeamView />}
         </main>
       </div>
     </div>
@@ -584,19 +604,30 @@ function VerificationView() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [audit, setAudit] = useState<AuditRow[]>([]);
+  const [names, setNames] = useState<Record<string, string>>({});
+
+  async function refreshAudit() {
+    const { data } = await supabase.from("kyc_audit_log").select("*").order("created_at", { ascending: false }).limit(300);
+    setAudit((data as AuditRow[]) ?? []);
+  }
 
   useEffect(() => {
     let active = true;
     async function load() {
-      const [{ data }, { data: kyc }] = await Promise.all([
+      const [{ data }, { data: kyc }, { data: log }, { data: all }] = await Promise.all([
         supabase
           .from("provider_profiles")
           .select("id, business_name, created_at, categories(name)")
           .eq("verified", false)
           .order("created_at"),
         supabase.from("kyc_documents").select("id, user_id, doc_type, file_path, status, rejection_reason"),
+        supabase.from("kyc_audit_log").select("*").order("created_at", { ascending: false }).limit(300),
+        supabase.from("provider_profiles").select("id, business_name"),
       ]);
       if (!active) return;
+      setAudit((log as AuditRow[]) ?? []);
+      setNames(Object.fromEntries(((all as any[]) ?? []).map((p) => [p.id, p.business_name])));
       const grouped: Record<string, KycDocRow[]> = {};
       for (const d of (kyc as KycDocRow[]) ?? []) (grouped[d.user_id] ??= []).push(d);
       setDocs(grouped);
@@ -627,6 +658,7 @@ function VerificationView() {
         .eq("user_id", id)
         .eq("status", "pending");
       setRows((all) => all.filter((r) => r.id !== id));
+      void refreshAudit();
     }
     setBusyId(null);
   }
@@ -645,6 +677,7 @@ function VerificationView() {
       .eq("id", doc.id);
     setBusyId(null);
     if (!error) {
+      void refreshAudit();
       setDocs((all) => ({
         ...all,
         [doc.user_id]: (all[doc.user_id] ?? []).map((d) => (d.id === doc.id ? { ...d, status, rejection_reason: reason } : d)),
@@ -734,12 +767,130 @@ function VerificationView() {
                         ))}
                       </ul>
                     )}
+                    <AuditList entries={audit.filter((a) => a.user_id === r.id)} />
                   </div>
                 )}
               </div>
             );
           })}
       </div>
+      <div className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <p className="flex items-center gap-1.5 text-sm font-semibold"><History className="h-4 w-4" /> Review history (all businesses)</p>
+        <AuditList entries={audit.slice(0, 50)} showBusiness names={names} />
+      </div>
+    </Section>
+  );
+}
+
+type AuditRow = {
+  id: string;
+  user_id: string;
+  doc_type: string;
+  action: string;
+  reason: string | null;
+  actor_email: string | null;
+  created_at: string;
+};
+
+function AuditList({ entries, showBusiness, names }: { entries: AuditRow[]; showBusiness?: boolean; names?: Record<string, string> }) {
+  if (entries.length === 0) return <p className="mt-3 text-[11px] text-muted-foreground">No reviews recorded yet.</p>;
+  return (
+    <ul className="mt-3 divide-y divide-border text-xs">
+      {entries.map((a) => (
+        <li key={a.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+          <span>
+            <span className={a.action === "approved" ? "font-semibold text-primary" : "font-semibold text-destructive"}>
+              {a.action === "approved" ? "Approved" : "Rejected"}
+            </span>{" "}
+            {KYC_LABELS[a.doc_type] ?? a.doc_type}
+            {showBusiness && names?.[a.user_id] ? ` · ${names[a.user_id]}` : ""} by{" "}
+            <span className="font-medium">{a.actor_email ?? "system"}</span>
+            {a.reason ? <span className="text-muted-foreground"> — “{a.reason}”</span> : null}
+          </span>
+          <span className="text-[11px] text-muted-foreground">
+            {new Date(a.created_at).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+type StaffRow = { user_id: string; email: string; role: "admin" | "moderator" | "user"; created_at: string };
+
+function TeamView() {
+  const [rows, setRows] = useState<StaffRow[]>([]);
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"admin" | "moderator">("moderator");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    const { data } = await supabase.rpc("list_staff");
+    setRows((data as StaffRow[]) ?? []);
+  }
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function add() {
+    if (!email.trim()) return;
+    setBusy(true);
+    setMsg(null);
+    const { error } = await supabase.rpc("grant_staff_role", { _email: email.trim(), _role: role });
+    setBusy(false);
+    if (error) setMsg(error.message);
+    else {
+      setMsg(`Added ${email.trim()} as ${role}.`);
+      setEmail("");
+      void load();
+    }
+  }
+
+  async function remove(r: StaffRow) {
+    if (!window.confirm(`Remove ${r.role} access from ${r.email}?`)) return;
+    const { error } = await supabase.rpc("revoke_staff_role", { _user_id: r.user_id, _role: r.role });
+    if (error) setMsg(error.message);
+    else void load();
+  }
+
+  return (
+    <Section title="Team & roles" subtitle="Add admins (full access) or moderators (help review). They must have an Ọjà account first.">
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+        <div className="flex flex-wrap gap-2">
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="their-email@example.com"
+            className="min-w-0 flex-1 rounded-full border border-border bg-background px-4 py-2 text-sm outline-none focus:border-primary"
+          />
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value as "admin" | "moderator")}
+            className="rounded-full border border-border bg-background px-3 py-2 text-sm"
+          >
+            <option value="moderator">Moderator</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button onClick={add} disabled={busy} className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+            Add
+          </button>
+        </div>
+        {msg && <p className="mt-2 text-xs text-muted-foreground">{msg}</p>}
+      </div>
+      <ul className="mt-4 divide-y divide-border rounded-2xl border border-border bg-card shadow-sm">
+        {rows.map((r) => (
+          <li key={r.user_id + r.role} className="flex items-center justify-between gap-2 p-3 text-sm">
+            <span>
+              {r.email} <span className="ml-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold capitalize text-primary">{r.role}</span>
+            </span>
+            <button onClick={() => remove(r)} className="rounded-full border border-border px-3 py-1 text-[11px] font-semibold text-destructive hover:bg-muted">
+              Remove
+            </button>
+          </li>
+        ))}
+        {rows.length === 0 && <li className="p-4 text-center text-xs text-muted-foreground">No team members yet.</li>}
+      </ul>
     </Section>
   );
 }

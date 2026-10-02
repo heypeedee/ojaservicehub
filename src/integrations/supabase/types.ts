@@ -207,6 +207,42 @@ export type Database = {
         }
         Relationships: []
       }
+      kyc_audit_log: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          created_at: string
+          doc_type: string
+          document_id: string | null
+          id: string
+          reason: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          doc_type: string
+          document_id?: string | null
+          id?: string
+          reason?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          doc_type?: string
+          document_id?: string | null
+          id?: string
+          reason?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       kyc_documents: {
         Row: {
           created_at: string
@@ -727,6 +763,10 @@ export type Database = {
     }
     Functions: {
       generate_unique_username: { Args: { seed: string }; Returns: string }
+      grant_staff_role: {
+        Args: { _email: string; _role: Database["public"]["Enums"]["app_role"] }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -737,6 +777,22 @@ export type Database = {
       is_participant: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
+      }
+      list_staff: {
+        Args: never
+        Returns: {
+          created_at: string
+          email: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }[]
+      }
+      revoke_staff_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: undefined
       }
     }
     Enums: {
