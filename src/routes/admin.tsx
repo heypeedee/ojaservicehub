@@ -985,13 +985,142 @@ function NotBuiltYet({ title, subtitle, note }: { title: string; subtitle: strin
   );
 }
 
+type DisputeRow = {
+  id: string;
+  booking_id: string;
+  opened_by: string;
+  opener_role: string;
+  reason: string;
+  details: string | null;
+  status: string;
+  resolution_note: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  booking?: { service_title: string | null; amount: number; payout_amount: number; payment_status: string; customer_id: string | null; provider_id: string } | null;
+};
+
 function DisputesView() {
+  const [rows, setRows] = useState<DisputeRow[]>([]);
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"open" | "closed">("open");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("disputes")
+      .select("*, booking:bookings(service_title, amount, payout_amount, payment_status, customer_id, provider_id)")
+      .order("created_at", { ascending: false });
+    if (error) setErr(error.message);
+    const list = ((data as any[]) ?? []) as DisputeRow[];
+    setRows(list);
+    const ids = Array.from(
+      new Set(list.flatMap((d) => [d.booking?.customer_id, d.booking?.provider_id]).filter(Boolean) as string[])
+    );
+    if (ids.length) {
+      const [{ data: profs }, { data: biz }] = await Promise.all([
+        supabase.from("profiles").select("id, display_name, full_name, username").in("id", ids),
+        supabase.from("provider_profiles").select("id, business_name").in("id", ids),
+      ]);
+      const m: Record<string, string> = {};
+      (profs ?? []).forEach((p: any) => (m[p.id] = p.full_name || p.display_name || (p.username ? "@" + p.username : "User")));
+      (biz ?? []).forEach((b: any) => (m[b.id] = b.business_name));
+      setNames(m);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function resolve(d: DisputeRow, outcome: "refund" | "release" | "dismiss") {
+    const label = outcome === "refund" ? "refund the buyer" : outcome === "release" ? "release payment to the business" : "close this dispute and resume the booking";
+    const note = window.prompt(`You are about to ${label}. Add a note both people will see:`);
+    if (note === null) return;
+    setBusy(d.id);
+    setErr(null);
+    const { error } = await supabase.rpc("resolve_dispute", { _dispute_id: d.id, _outcome: outcome, _note: note.trim() });
+    setBusy(null);
+    if (error) setErr(error.message);
+    else void load();
+  }
+
+  const shown = rows.filter((r) => (tab === "open" ? r.status === "open" : r.status !== "open"));
+  const openCount = rows.filter((r) => r.status === "open").length;
+  const held = rows.filter((r) => r.status === "open").reduce((a, r) => a + Number(r.booking?.amount ?? 0), 0);
+  const fmt = (n: number) => `₦${Math.round(n).toLocaleString()}`;
+  const outcomeLabel: Record<string, string> = { refunded: "Buyer refunded", released: "Paid to business", dismissed: "Dismissed" };
+
   return (
-    <NotBuiltYet
+    <Section
       title="Disputes"
-      subtitle="Resolve escrow disputes between customers and providers."
-      note="There's no dispute-filing flow yet — customers and providers can't raise a dispute from the app, so there's nothing real to show here. This needs its own data model before it can go live."
-    />
+      subtitle={loading ? "Loading…" : `${openCount} open · ${fmt(held)} on hold`}
+      right={
+        <div className="flex gap-1 rounded-full border border-border bg-card p-1 text-xs font-semibold">
+          {(["open", "closed"] as const).map((t) => (
+            <button key={t} onClick={() => setTab(t)} className={`rounded-full px-3 py-1 ${tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>
+              {t === "open" ? "Open" : "Resolved"}
+            </button>
+          ))}
+        </div>
+      }
+    >
+      {err && <p className="mb-3 rounded-xl bg-destructive/10 p-3 text-xs text-destructive">{err}</p>}
+      {!loading && shown.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center text-xs text-muted-foreground">
+          {tab === "open" ? "No open disputes. 🎉" : "No resolved disputes yet."}
+        </div>
+      )}
+      <ul className="space-y-3">
+        {shown.map((d) => {
+          const b = d.booking;
+          const buyer = b?.customer_id ? names[b.customer_id] ?? "Buyer" : "Buyer";
+          const pro = b ? names[b.provider_id] ?? "Business" : "Business";
+          return (
+            <li key={d.id} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">{b?.service_title ?? "Booking"} · {fmt(Number(b?.amount ?? 0))}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Buyer: <span className="font-medium text-foreground">{buyer}</span> · Business: <span className="font-medium text-foreground">{pro}</span>
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Opened by the {d.opener_role === "provider" ? "business" : "buyer"} ·{" "}
+                    {new Date(d.created_at).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })}
+                  </p>
+                </div>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${d.status === "open" ? "bg-destructive/10 text-destructive" : "bg-muted text-foreground"}`}>
+                  {d.status === "open" ? "Open" : outcomeLabel[d.status] ?? d.status}
+                </span>
+              </div>
+              <div className="mt-3 rounded-xl bg-muted/50 p-3 text-xs">
+                <p className="font-semibold">{d.reason}</p>
+                {d.details && <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{d.details}</p>}
+              </div>
+              {d.status !== "open" && d.resolution_note && (
+                <p className="mt-2 text-xs text-muted-foreground">Note: {d.resolution_note}</p>
+              )}
+              {d.status === "open" && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button disabled={busy === d.id} onClick={() => resolve(d, "refund")} className="rounded-full bg-destructive px-3 py-1.5 text-xs font-semibold text-destructive-foreground disabled:opacity-50">
+                    Refund buyer {fmt(Number(b?.amount ?? 0))}
+                  </button>
+                  <button disabled={busy === d.id} onClick={() => resolve(d, "release")} className="rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50">
+                    Release {fmt(Number(b?.payout_amount ?? 0))} to business
+                  </button>
+                  <button disabled={busy === d.id} onClick={() => resolve(d, "dismiss")} className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
+                    Dismiss & resume
+                  </button>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </Section>
   );
 }
 
