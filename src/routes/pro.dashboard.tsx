@@ -450,6 +450,7 @@ function ProDashboard() {
             <OrdersPanel
               bookings={bookings}
               onStatus={updateBookingStatus}
+              onDisputed={(id) => setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, status: "disputed" } : b)))}
               onRelease={releasePayment}
               releasingId={releasingId}
               releaseError={releaseError}
@@ -1077,12 +1078,14 @@ function ServiceEditor({
 function OrdersPanel({
   bookings,
   onStatus,
+  onDisputed,
   onRelease,
   releasingId,
   releaseError,
 }: {
   bookings: Booking[];
   onStatus: (id: string, s: Booking["status"]) => void;
+  onDisputed: (id: string) => void;
   onRelease: (id: string) => void;
   releasingId: string | null;
   releaseError: string | null;
@@ -1151,7 +1154,7 @@ function OrdersPanel({
                 Message
               </Link>
               {b.paymentStatus === "Paid" && b.status !== "disputed" && (
-                <DisputeButton bookingId={b.id} role="provider" onOpened={() => onStatusLocal?.(b.id)} />
+                <DisputeButton bookingId={b.id} role="provider" onOpened={() => onDisputed(b.id)} />
               )}
             </li>
           ))}
