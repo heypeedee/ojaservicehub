@@ -1,3 +1,4 @@
+import { DisputeButton, DisputedPill } from "@/components/DisputeButton";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -1124,8 +1125,10 @@ function OrdersPanel({
                 <p className="text-sm font-semibold">{formatNaira(b.amount)}</p>
                 <PaymentBadge status={b.paymentStatus} />
               </div>
+              {b.status === "disputed" && <DisputedPill />}
               <select
                 value={b.status}
+                disabled={b.status === "disputed"}
                 onChange={(e) => onStatus(b.id, e.target.value as Booking["status"])}
                 className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold"
               >
@@ -1147,6 +1150,9 @@ function OrdersPanel({
               <Link to="/messages" search={{ conversationId: "" }} className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-semibold hover:border-primary/40">
                 Message
               </Link>
+              {b.paymentStatus === "Paid" && b.status !== "disputed" && (
+                <DisputeButton bookingId={b.id} role="provider" onOpened={() => onStatusLocal?.(b.id)} />
+              )}
             </li>
           ))}
           {filtered.length === 0 && <li className="py-8 text-center text-xs text-muted-foreground">No orders in this tab.</li>}
