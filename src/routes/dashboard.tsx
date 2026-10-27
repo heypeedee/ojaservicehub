@@ -23,6 +23,7 @@ import {
 import { OjaLogo } from "@/components/OjaLogo";
 import { supabase } from "@/integrations/supabase/client";
 import { RoleGate } from "@/components/RoleGate";
+import { DisputeButton, DisputedPill } from "@/components/DisputeButton";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -46,7 +47,7 @@ export const Route = createFileRoute("/dashboard")({
   ),
 });
 
-type OrderStatus = "Confirmed" | "Awaiting pro" | "Completed" | "Cancelled";
+type OrderStatus = "Confirmed" | "Awaiting pro" | "Completed" | "Cancelled" | "Disputed";
 
 type Order = {
   id: string;
@@ -57,6 +58,7 @@ type Order = {
   area: string;
   amount: number;
   status: OrderStatus;
+  paymentStatus: string;
   image?: string;
   rated?: boolean;
   tipped?: number;
@@ -67,6 +69,7 @@ type BookingRow = {
   service_title: string;
   amount: number;
   status: string;
+  payment_status: string;
   scheduled_at: string | null;
   updated_at: string;
   location: string | null;
@@ -76,7 +79,8 @@ type BookingRow = {
 
 function mapBookingStatus(s: string): OrderStatus {
   if (s === "pending") return "Awaiting pro";
-  if (s === "accepted" || s === "in_progress" || s === "disputed") return "Confirmed";
+  if (s === "accepted" || s === "in_progress") return "Confirmed";
+  if (s === "disputed") return "Disputed";
   if (s === "completed") return "Completed";
   if (s === "cancelled" || s === "declined") return "Cancelled";
   return "Awaiting pro";
@@ -130,7 +134,7 @@ function BuyerDashboard() {
       const { data: rows } = await supabase
         .from("bookings")
         .select(
-          "id, service_title, amount, status, scheduled_at, updated_at, location, provider_id, provider_profiles(business_name, area, categories(name))"
+          "id, service_title, amount, status, payment_status, scheduled_at, updated_at, location, provider_id, provider_profiles(business_name, area, categories(name))"
         )
         .eq("customer_id", uid)
         .order("created_at", { ascending: false });
@@ -148,6 +152,7 @@ function BuyerDashboard() {
           area: b.location || b.provider_profiles?.area || "—",
           amount: Number(b.amount),
           status: mapBookingStatus(b.status),
+          paymentStatus: b.payment_status,
         }))
       );
       setLoading(false);
@@ -158,7 +163,7 @@ function BuyerDashboard() {
     };
   }, []);
 
-  const upcoming = orders.filter((o) => o.status === "Confirmed" || o.status === "Awaiting pro");
+  const upcoming = orders.filter((o) => o.status === "Confirmed" || o.status === "Awaiting pro" || o.status === "Disputed");
   const completed = orders.filter((o) => o.status === "Completed");
   const totalSpend = orders.filter((o) => o.status === "Completed").reduce((s, o) => s + o.amount, 0);
   const escrowTotal = upcoming.reduce((s, o) => s + o.amount, 0);
@@ -171,6 +176,9 @@ function BuyerDashboard() {
   const applyReview = (id: string) => {
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, rated: true } : o)));
     setReviewTarget(null);
+  };
+  const markDisputed = (id: string) => {
+    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status: "Disputed" } : o)));
   };
   const toggleFavourite = (id: string) => {
     setFavourites((prev) => prev.filter((f) => f.id !== id));
@@ -208,7 +216,7 @@ function BuyerDashboard() {
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
           <div className="space-y-6">
-            <UpcomingBookings items={upcoming} />
+            <UpcomingBookings items={upcoming} onDisputed={markDisputed} />
             <SpendChart orders={orders} totalSpend={totalSpend} />
             <OrderHistory
               orders={orders}
@@ -368,7 +376,7 @@ function KpiRow({
   );
 }
 
-function UpcomingBookings({ items }: { items: Order[] }) {
+function UpcomingBookings({ items, onDisputed }: { items: Order[]; onDisputed: (id: string) => void }) {
   return (
     <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
       <div className="flex items-center justify-between">
@@ -403,6 +411,7 @@ function UpcomingBookings({ items }: { items: Order[] }) {
                     {b.status === "Confirmed" ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
                     {b.status}
                   </span>
+                  {b.status === "Disputed" && <DisputedPill />}
                 </div>
                 <p className="truncate text-xs text-muted-foreground">{b.craft}</p>
                 <p className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
@@ -423,6 +432,9 @@ function UpcomingBookings({ items }: { items: Order[] }) {
                 >
                   Message
                 </Link>
+                {b.paymentStatus === "Paid" && b.status !== "Disputed" && (
+                  <DisputeButton bookingId={b.id} role="customer" onOpened={() => onDisputed(b.id)} />
+                )}
               </div>
             </li>
           ))}
@@ -498,7 +510,7 @@ function OrderHistory({
       if (tab === "all") return true;
       if (tab === "completed") return o.status === "Completed";
       if (tab === "cancelled") return o.status === "Cancelled";
-      return o.status === "Confirmed" || o.status === "Awaiting pro";
+      return o.status === "Confirmed" || o.status === "Awaiting pro" || o.status === "Disputed";
     });
     if (!q.trim()) return byTab;
     const t = q.toLowerCase();
@@ -600,6 +612,7 @@ function StatusPill({ status }: { status: OrderStatus }) {
     "Awaiting pro": "bg-gold/20 text-charcoal",
     Completed: "bg-muted text-foreground",
     Cancelled: "bg-red-500/10 text-red-600",
+    Disputed: "bg-destructive/10 text-destructive",
   };
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${map[status]}`}>
