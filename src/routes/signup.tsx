@@ -97,6 +97,104 @@ function slugify(s: string) {
     .slice(0, 40);
 }
 
+// ============ Pending provider draft (survives email confirmation) ============
+// When email confirmation blocks the session, the provider signup details are
+// stored in the browser. After the user confirms and signs in, /signup resumes
+// from this draft instead of dropping them on the buyer dashboard.
+
+const DRAFT_KEY = "oja:pending-provider";
+
+type ProviderDraft = {
+  role: "provider";
+  fullName: string;
+  email: string;
+  phone: string;
+  city: string;
+  area: string;
+  bizName: string;
+  category: string;
+  tagline: string;
+  about: string;
+  priceFrom: string;
+  services: { name: string; price: number }[];
+  idType: string;
+  idNumber: string;
+};
+
+function readDraft(): ProviderDraft | null {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? "null");
+    if (parsed && typeof parsed === "object" && (parsed as { role?: string }).role === "provider") {
+      return parsed as ProviderDraft;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(d: Omit<ProviderDraft, "role">) {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...d, role: "provider" as const }));
+  } catch {
+    /* storage unavailable — the user can still finish setup from their dashboard */
+  }
+}
+
+function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* noop */
+  }
+}
+
+async function createProviderProfile(
+  userId: string,
+  d: {
+    bizName: string;
+    category: string;
+    tagline: string;
+    area: string;
+    city: string;
+    phone: string;
+    services: { name: string; price: number }[];
+    priceFrom: string;
+  },
+  dbCategories: { id: string; name: string }[],
+): Promise<{ message: string } | null> {
+  const matchedCategory = dbCategories.find((c) => c.name === d.category);
+  const computedPrice =
+    d.services.length > 0 ? Math.min(...d.services.map((s) => s.price)) : d.priceFrom ? Number(d.priceFrom) : 0;
+
+  const { error: profileError } = await supabase.from("provider_profiles").upsert({
+    id: userId,
+    business_name: d.bizName,
+    tagline: d.tagline || null,
+    category_id: matchedCategory?.id ?? null,
+    area: `${d.area || "your area"}, ${d.city}`,
+    phone: d.phone || null,
+    price_from: computedPrice,
+    published: true,
+  });
+  if (profileError) return { message: profileError.message };
+
+  if (d.services.length > 0) {
+    const { error: servicesError } = await supabase.from("services").insert(
+      d.services.map((s) => ({
+        provider_id: userId,
+        title: s.name,
+        category: d.category || null,
+        price: s.price,
+        price_ngn: Math.round(s.price),
+        active: true,
+      })),
+    );
+    if (servicesError) return { message: servicesError.message };
+  }
+  return null;
+}
+
 function SignupPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<"signup" | "login" | "forgot" | "reset">("signup");
@@ -109,19 +207,53 @@ function SignupPage() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [dbCategories, setDbCategories] = useState<{ id: string; name: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [resuming, setResuming] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Login-only fields
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
-  async function routeToDashboard(userId: string) {
+  function restoreDraft(d: ProviderDraft) {
+    setFullName(d.fullName || "");
+    setEmail(d.email || "");
+    setPhone(d.phone || "");
+    setCity(d.city || "Lagos");
+    setArea(d.area || "");
+    setBizName(d.bizName || "");
+    setCategory(d.category || "");
+    setTagline(d.tagline || "");
+    setAbout(d.about || "");
+    setPriceFrom(d.priceFrom || "");
+    setServices(Array.isArray(d.services) ? d.services : []);
+    setIdType(d.idType || "NIN");
+    setIdNumber(d.idNumber || "");
+  }
+
+  async function afterAuth(userId: string, email?: string | null) {
     const { data: providerRow } = await supabase
       .from("provider_profiles")
       .select("id")
       .eq("id", userId)
       .maybeSingle();
-    navigate({ to: providerRow ? "/pro/dashboard" : "/dashboard", replace: true });
+    if (providerRow) {
+      clearDraft();
+      navigate({ to: "/pro/dashboard", replace: true });
+      return;
+    }
+    const draft = readDraft();
+    const sameEmail =
+      draft && (!draft.email || !email || draft.email.trim().toLowerCase() === email.trim().toLowerCase());
+    if (draft && sameEmail) {
+      // The account was created but email confirmation blocked the storefront
+      // setup — resume it with the saved details instead of the buyer dashboard.
+      restoreDraft(draft);
+      setRole("provider");
+      setResuming(true);
+      setCheckingSession(false);
+      return;
+    }
+    navigate({ to: "/dashboard", replace: true });
   }
 
   useEffect(() => {
@@ -134,8 +266,8 @@ function SignupPage() {
       if (!active) return;
       setDbCategories(cats ?? []);
       if (sessionData.session) {
-        // Already signed in — no need to go through signup again.
-        routeToDashboard(sessionData.session.user.id);
+        // Already signed in — head to the right dashboard (or resume provider setup).
+        await afterAuth(sessionData.session.user.id, sessionData.session.user.email);
         return;
       }
       setCheckingSession(false);
@@ -159,7 +291,7 @@ function SignupPage() {
       setAuthError(error.message);
       return;
     }
-    if (data.user) await routeToDashboard(data.user.id);
+    if (data.user) await afterAuth(data.user.id, data.user.email);
   }
 
   async function handleGoogleSignIn() {
@@ -181,7 +313,7 @@ function SignupPage() {
       setAuthError("Signed in, but couldn't establish a valid session. Please try again.");
       return;
     }
-    await routeToDashboard(refreshed.session.user.id);
+    await afterAuth(refreshed.session.user.id, refreshed.session.user.email);
   }
 
 
@@ -301,7 +433,11 @@ function SignupPage() {
 
     if (!signUpData.session) {
       // Email confirmation is required before a session exists — can't create
-      // the provider profile yet (RLS requires an authenticated user).
+      // the provider profile yet (RLS requires an authenticated user). Save the
+      // details locally so /signup resumes them once the email is confirmed.
+      if (role === "provider") {
+        saveDraft({ fullName, email, phone, city, area, bizName, category, tagline, about, priceFrom, services, idType, idNumber });
+      }
       setSubmitting(false);
       setStep(totalSteps);
       setCreated({
@@ -321,27 +457,17 @@ function SignupPage() {
     }
 
     if (role === "provider" && userId) {
-      const matchedCategory = dbCategories.find((c) => c.name === category);
-      const computedPrice =
-        services.length > 0 ? Math.min(...services.map((s) => s.price)) : priceFrom ? Number(priceFrom) : 0;
-
-      const { error: profileError } = await supabase.from("provider_profiles").upsert({
-        id: userId,
-        business_name: bizName || fullName,
-        tagline: tagline || null,
-        category_id: matchedCategory?.id ?? null,
-        area: `${area || "your area"}, ${city}`,
-        phone: phone || null,
-        price_from: computedPrice,
-        published: true,
-      });
-
+      const profileError = await createProviderProfile(
+        userId,
+        { bizName: bizName || fullName, category, tagline, area, city, phone, services, priceFrom },
+        dbCategories,
+      );
       setSubmitting(false);
       if (profileError) {
         setAuthError(profileError.message);
         return;
       }
-
+      clearDraft();
       setCreated({
         slug,
         name: bizName || fullName,
@@ -359,6 +485,48 @@ function SignupPage() {
       setSubmitting(false);
       setStep(totalSteps);
     }
+  }
+
+  async function finishResume() {
+    setAuthError(null);
+    const { data: sessionData } = await supabase.auth.getSession();
+    const uid = sessionData.session?.user?.id;
+    if (!uid) {
+      setAuthError("Your session expired — please sign in again.");
+      return;
+    }
+    setSubmitting(true);
+    const error = await createProviderProfile(
+      uid,
+      { bizName: bizName || fullName, category, tagline, area, city, phone, services, priceFrom },
+      dbCategories,
+    );
+    setSubmitting(false);
+    if (error) {
+      setAuthError(error.message);
+      return;
+    }
+    clearDraft();
+    setResuming(false);
+    setCreated({
+      slug,
+      name: bizName || fullName,
+      category: category || "Services",
+      area: `${area || "your area"}, ${city}`,
+      tagline: tagline || "Trusted local professional",
+      services: services.length
+        ? services
+        : priceFrom
+          ? [{ name: "Starter service", price: Number(priceFrom) }]
+          : [],
+    });
+    setStep(totalSteps);
+  }
+
+  function skipResume() {
+    clearDraft();
+    setResuming(false);
+    void navigate({ to: "/dashboard", replace: true });
   }
 
   // Success / storefront view
@@ -405,6 +573,62 @@ function SignupPage() {
     return (
       <Shell>
         <div className="mx-auto max-w-md py-20 text-center text-sm text-muted-foreground">Loading…</div>
+      </Shell>
+    );
+  }
+
+  // Resume a provider signup that was interrupted by email confirmation.
+  if (resuming && role === "provider") {
+    return (
+      <Shell>
+        <div className="mx-auto max-w-lg rounded-3xl border border-border bg-card p-8 shadow-sm">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-primary/10 text-primary">
+            <Store className="h-7 w-7" />
+          </div>
+          <h1 className="mt-4 text-center text-2xl font-semibold">Finish publishing your storefront</h1>
+          <p className="mt-1 text-center text-sm text-muted-foreground">
+            Welcome back{fullName ? `, ${fullName.split(" ")[0]}` : ""}. We saved your business details —
+            check they're still right and go live in one tap.
+          </p>
+          <div className="mt-5 divide-y divide-border rounded-2xl border border-border bg-muted/30 px-4 text-sm">
+            <div className="flex items-center justify-between gap-4 py-2.5">
+              <span className="text-muted-foreground">Business</span>
+              <span className="text-right font-semibold">{bizName || fullName || "—"}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-2.5">
+              <span className="text-muted-foreground">Category</span>
+              <span className="text-right font-semibold">{category || "—"}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-2.5">
+              <span className="text-muted-foreground">Area</span>
+              <span className="text-right font-semibold">{area ? `${area}, ${city}` : city}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-2.5">
+              <span className="text-muted-foreground">Services</span>
+              <span className="text-right font-semibold">
+                {services.length > 0
+                  ? services.map((sv) => sv.name).join(", ")
+                  : priceFrom
+                    ? `From ₦${Number(priceFrom).toLocaleString()}`
+                    : "—"}
+              </span>
+            </div>
+          </div>
+          {authError && <p className="mt-3 text-sm text-destructive">{authError}</p>}
+          <button
+            onClick={finishResume}
+            disabled={submitting}
+            className="mt-6 inline-flex w-full items-center justify-center gap-1 rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          >
+            {submitting ? "Publishing…" : <>Publish my storefront <ArrowRight className="h-4 w-4" /></>}
+          </button>
+          <button
+            onClick={skipResume}
+            className="mt-3 w-full text-center text-xs font-semibold text-muted-foreground hover:text-foreground"
+          >
+            Not now — take me to my orders
+          </button>
+        </div>
       </Shell>
     );
   }
@@ -970,8 +1194,9 @@ function StorefrontLive({
           </div>
           <h1 className="mt-4 text-2xl font-semibold">Confirm your email</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            We sent a confirmation link to your inbox. Once confirmed, sign in and finish publishing{" "}
-            <span className="font-semibold text-foreground">{created.name}</span> from your business dashboard.
+            We sent a confirmation link to your inbox. Once confirmed, sign in and we'll pick up right where you
+            left off — your details for{" "}
+            <span className="font-semibold text-foreground">{created.name}</span> are saved.
           </p>
         </div>
       </Shell>
