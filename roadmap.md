@@ -1,0 +1,2 @@
+- [ ] Verify first-time provider onboarding and the email-confirmation storefront resume path.
+- [ ] Persist customer reviews for eligible completed bookings and reflect current review state in the dashboard.
